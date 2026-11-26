@@ -1,0 +1,18 @@
+# Runtime dependencies for redis_comsumer.py / flask_server.py.
+# Keep torch and torchvision on a mutually compatible pair for the target CUDA
+# driver; the vendored DSLFIQA/timm code does not need a separately installed
+# timm package.
+torch
+torchvision
+numpy
+opencv-python
+Pillow
+tqdm
+einops
+pyhocon
+redis
+mysql-connector-python
+requests
+flask
+werkzeug
+facenet-pytorch

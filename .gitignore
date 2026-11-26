@@ -1,0 +1,50 @@
+# macOS / editors
+.DS_Store
+.idea/
+.vscode/
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Model weights (restore from the weight archive, see legacy/WEIGHTS.md)
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.npy
+*.npz
+*.safetensors
+
+# Regression recordings, legacy outputs, face images and videos.
+# These contain people's faces; never commit them.
+testdata/
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.mp4
+*.mkv
+*.ts
+*.h264
+!docs/**/*.png
+!docs/**/*.jpg
+
+# Runtime output
+runtime/
+output/
+recordings/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+*.egg-info/
+
+# Go
+/bin/
+*.test
+*.out

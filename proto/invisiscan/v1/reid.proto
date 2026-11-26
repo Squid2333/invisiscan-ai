@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package invisiscan.v1;
+
+import "invisiscan/v1/common.proto";
+
+option go_package = "github.com/Squid2333/invisiscan-ai/gen/go/invisiscan/v1;invisiscanv1";
+
+// Reserved for the PersonViT body ReID program, which is not in the
+// current code copy. Not implemented; the contract exists so outdoor tracks
+// can be queued as pending_reid without later schema or API changes.
+service ReIDService {
+  rpc ExtractBodyEmbedding(ExtractBodyEmbeddingRequest) returns (ExtractBodyEmbeddingResponse);
+}
+
+message ExtractBodyEmbeddingRequest {
+  repeated Image bodies = 1;   // segmentation cut-outs from tracks/{uuid}/seg/
+}
+
+message ExtractBodyEmbeddingResponse {
+  repeated BodyEmbedding embeddings = 1;   // same length and order as request
+  string model = 2;
+  int32 dim = 3;
+}
+
+message BodyEmbedding {
+  bool ok = 1;
+  repeated float vector = 2;
+  float quality = 3;
+}

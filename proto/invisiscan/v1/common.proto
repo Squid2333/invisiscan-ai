@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package invisiscan.v1;
+
+option go_package = "github.com/Squid2333/invisiscan-ai/gen/go/invisiscan/v1;invisiscanv1";
+
+// Image carries one picture between Go and the Python services.
+message Image {
+  enum Encoding {
+    ENCODING_UNSPECIFIED = 0;
+    // Packed BGR24, row-major, no padding. width and height are required.
+    ENCODING_RAW_BGR24 = 1;
+    ENCODING_JPEG = 2;
+    ENCODING_PNG = 3;
+  }
+  Encoding encoding = 1;
+  bytes data = 2;
+  int32 width = 3;
+  int32 height = 4;
+}
+
+// Axis-aligned box in pixel coordinates, (x1, y1) top-left, (x2, y2)
+// bottom-right. The coordinate system is stated by the field that uses it.
+message BBox {
+  float x1 = 1;
+  float y1 = 2;
+  float x2 = 3;
+  float y2 = 4;
+}
+
+// Server-side timings, for metrics only.
+message Timings {
+  float total_ms = 1;
+  map<string, float> stages_ms = 2;
+}

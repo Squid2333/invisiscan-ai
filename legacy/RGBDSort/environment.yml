@@ -1,0 +1,27 @@
+name: RGBDSort
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - numpy=1.26.4
+  - scipy=1.16.3
+  - pip:
+      - cython==3.2.3
+      - cython-bbox==0.1.5
+      - decord==0.6.0
+      - easydict==1.13
+      - einops==0.4.1
+      - imageio==2.37.0
+      - imageio-ffmpeg==0.4.7
+      - lap==0.5.12
+      - matplotlib==3.10.7
+      - opencv-python==4.11.0.86
+      - pillow==12.0.0
+      - redis==7.1.0
+      - requests==2.32.5
+      - torch==2.1.1
+      - torchvision==0.16.1
+      - tqdm==4.67.1
+      - ultralytics==8.3.229
+      - xformers==0.0.23

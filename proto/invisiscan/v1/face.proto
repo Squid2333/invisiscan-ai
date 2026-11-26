@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package invisiscan.v1;
+
+import "invisiscan/v1/common.proto";
+
+option go_package = "github.com/Squid2333/invisiscan-ai/gen/go/invisiscan/v1;invisiscanv1";
+
+// FaceService runs in the AdaFace environment. All RPCs are stateless.
+service FaceService {
+  // MTCNN alignment to 112x112 (old face_alignment/align.get_aligned_face,
+  // align_multi(limit=1)). Used on segmentation cut-outs during recognition
+  // and on legacy picture BLOBs during migration.
+  rpc AlignFaces(AlignFacesRequest) returns (AlignFacesResponse);
+
+  // AdaFace ir_50 embeddings. Input must already be aligned 112x112 faces.
+  rpc EmbedFaces(EmbedFacesRequest) returns (EmbedFacesResponse);
+
+  // Landmark re-alignment + DSL-FIQA quality (old process_folder:
+  // landmark() then dsl_fiqa()). Returns the re-aligned image with its
+  // score so the caller can embed the best one, as old re_compute_user did.
+  rpc AssessQuality(AssessQualityRequest) returns (AssessQualityResponse);
+}
+
+message AlignFacesRequest {
+  repeated Image images = 1;
+}
+
+message AlignFacesResponse {
+  // Same length and order as the request; `found` is false when MTCNN
+  // detected no face.
+  repeated AlignedFace faces = 1;
+}
+
+message AlignedFace {
+  bool found = 1;
+  Image image = 2;   // 112x112 RGB, JPEG
+}
+
+message EmbedFacesRequest {
+  repeated Image faces = 1;
+}
+
+message EmbedFacesResponse {
+  // Same length and order as the request. Embeddings are the first output
+  // of the AdaFace forward pass, already L2-normalized (unit length).
+  // ok = false when the image could not be decoded; the old code skipped it.
+  repeated FaceEmbedding embeddings = 1;
+  string model = 2;   // e.g. "adaface_ir50_ms1mv2"
+}
+
+message FaceEmbedding {
+  bool ok = 1;
+  repeated float vector = 2;   // 512 floats
+  float norm = 3;              // pre-normalization norm returned by AdaFace
+}
+
+message AssessQualityRequest {
+  repeated Image faces = 1;
+}
+
+message AssessQualityResponse {
+  // Only faces that survived landmark re-alignment, sorted by quality
+  // descending (old sort_images). May be empty.
+  repeated QualityResult results = 1;
+}
+
+message QualityResult {
+  int32 input_index = 1;   // index into AssessQualityRequest.faces
+  float quality = 2;       // DSL-FIQA score; old enrol threshold is 0.15
+  Image realigned = 3;     // the image old code wrote under dsl/
+}

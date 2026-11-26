@@ -1,0 +1,20 @@
+# Locally supplied model checkpoints (kept in this working copy, never pushed).
+*.pt
+*.pth
+*.ckpt
+*.onnx
+face_alignment/mtcnn_pytorch/src/weights/*.npy
+
+# Runtime outputs and local caches.
+received_image/
+loaded_faces/
+new_faces/
+indoor/
+__pycache__/
+*.py[cod]
+.cache/
+
+# Local secrets/config overrides.
+.env
+.env.*
+!.env.example

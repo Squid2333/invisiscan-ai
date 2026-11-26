@@ -1,0 +1,158 @@
+syntax = "proto3";
+
+package invisiscan.v1;
+
+import "google/protobuf/timestamp.proto";
+import "invisiscan/v1/common.proto";
+
+option go_package = "github.com/Squid2333/invisiscan-ai/gen/go/invisiscan/v1;invisiscanv1";
+
+// PerceptionService runs in the RGBDSort environment (torch 2.1.1,
+// ultralytics 8.3.229). Perceive is stateful per stream: it owns the
+// VideoDepthAnything temporal window and the GMC previous frame. The other
+// RPCs are stateless.
+service PerceptionService {
+  // One bidirectional stream per camera. The first client message must be
+  // a SessionConfig; every later message is a FrameRequest. The client sends
+  // at most one frame in flight and waits for its FrameResult.
+  rpc Perceive(stream PerceiveRequest) returns (stream PerceiveResponse);
+
+  // LSTM trajectory classification (old track_comsumer.py + DoubleLSTM.py).
+  rpc ClassifyTrajectory(ClassifyTrajectoryRequest) returns (ClassifyTrajectoryResponse);
+
+  // yolo11m-seg person cut-out (old utils/track_utils.py save_segs).
+  rpc SegmentBodies(SegmentBodiesRequest) returns (SegmentBodiesResponse);
+}
+
+message PerceiveRequest {
+  oneof payload {
+    SessionConfig config = 1;
+    FrameRequest frame = 2;
+  }
+}
+
+message PerceiveResponse {
+  oneof payload {
+    SessionReady ready = 1;
+    FrameResult result = 2;
+  }
+}
+
+// Defaults equal the old RGBsort.py argparse defaults. Zero values mean
+// "use the server default"; the server echoes the effective values back in
+// SessionReady so the client can log them.
+message SessionConfig {
+  string stream_id = 1;
+  int32 max_side = 2;                 // 960
+  int32 depth_input_size = 3;         // 384
+  float det_conf = 4;                 // 0.05
+  float det_iou = 5;                  // 0.80
+  // ROI in original-resolution pixels, x1,y1,x2,y2. Empty = no ROI.
+  BBox roi = 6;                       // 800,1000,1200,1100
+  float roi_percentile = 7;           // 50
+  float default_depth_threshold = 8;  // 2.5
+  float gate_offset = 9;              // 0.4 (hard-coded in old code)
+  DepthFilterMode depth_filter_mode = 10; // GE
+  float nms_iou_close = 11;           // 0.3
+  float nms_iou_far = 12;             // 0.6
+  float nms_depth_delta = 13;         // 0.7
+  string gmc_method = 14;             // "sparseOptFlow"
+  bool with_reid = 15;                // true; features from the detector weights
+  // BOTSORT passes only detections with score >= track_high_thresh to
+  // gmc.apply() as foreground boxes. The server needs the same threshold
+  // to reproduce the warp. Must equal the Go tracker's track_high_thresh.
+  float gmc_det_score_thresh = 16;    // 0.1
+}
+
+enum DepthFilterMode {
+  DEPTH_FILTER_MODE_UNSPECIFIED = 0;
+  DEPTH_FILTER_MODE_GE = 1;   // keep depth >= gate (or NaN)
+  DEPTH_FILTER_MODE_LE = 2;   // keep depth <= gate (or NaN)
+  DEPTH_FILTER_MODE_OFF = 3;
+}
+
+message SessionReady {
+  SessionConfig effective_config = 1;
+  string detector_model = 2;   // e.g. "yolo26m-seg.pt"
+  string depth_model = 3;      // e.g. "video_depth_anything_vits.pth"
+  int32 reid_dim = 4;
+}
+
+message FrameRequest {
+  uint64 frame_seq = 1;                        // monotonically increasing per stream
+  google.protobuf.Timestamp frame_time = 2;    // echoed back, not used by the server
+  Image image = 3;                             // full-resolution BGR24, already rotated
+}
+
+message FrameResult {
+  uint64 frame_seq = 1;
+  google.protobuf.Timestamp frame_time = 2;
+  // Size of the image the detector, depth model and GMC saw (after max_side
+  // resize). Detection boxes and the GMC matrix are in this coordinate system.
+  int32 infer_width = 3;
+  int32 infer_height = 4;
+  // Detections after depth gating and depth-aware NMS, in the order the old
+  // code passed them to tracker.update().
+  repeated Detection detections = 5;
+  // 2x3 affine warp from the previous frame, row-major (6 values).
+  // Identity when GMC failed, matching the old try/except fallback.
+  repeated double gmc_warp = 6;
+  float depth_gate = 7;          // ROI-derived gate actually used this frame
+  bool roi_depth_valid = 8;      // false = gate fell back to default/last value
+  Timings timings = 9;
+}
+
+message Detection {
+  BBox box = 1;          // inference coordinates
+  float score = 2;
+  // IQR-filtered median depth of the mask (or box when no mask). NaN when
+  // no finite depth was available; the tracker-side EMA skips NaN.
+  float depth = 3;
+  // ReID embedding from the detector model, as the old BOTSORT ReID encoder
+  // produced it (not yet L2-normalized; BOTrack.update_features normalizes).
+  repeated float reid_feature = 4;
+}
+
+message ClassifyTrajectoryRequest {
+  // One row per output frame, same semantics as the old <person_dir>.txt:
+  // top-left x, y, width, height in original resolution, smoothed depth.
+  repeated TrajectoryPoint points = 1;
+  int32 frame_width = 2;    // old orig_w
+  int32 frame_height = 3;   // old orig_h
+  float confidence_threshold = 4;  // 0.3
+  int32 min_steps = 5;             // 15
+}
+
+message TrajectoryPoint {
+  float x = 1;
+  float y = 2;
+  float w = 3;
+  float h = 4;
+  float depth = 5;
+}
+
+message ClassifyTrajectoryResponse {
+  // "indoor" / "outdoor" / "pass". "pass" also covers too-short and
+  // low-confidence results, as in lstm_predict_varlen.
+  string category = 1;
+  float confidence = 2;
+  map<string, float> probs = 3;
+  int32 steps = 4;
+  string model = 5;   // e.g. "lstm.pth"
+}
+
+message SegmentBodiesRequest {
+  repeated Image images = 1;   // body crops
+  float conf = 2;              // 0.8
+}
+
+message SegmentBodiesResponse {
+  // Same length and order as the request. A result without image means no
+  // mask was found, the old code skipped writing segs/ for that crop.
+  repeated SegmentResult results = 1;
+}
+
+message SegmentResult {
+  Image image = 1;   // largest person mask kept, everything else black; JPEG
+  float mask_area = 2;
+}

@@ -1,0 +1,15 @@
+# Model files are intentionally kept in this local project directory but are
+# excluded from GitHub commits.  Place them under these paths before running.
+weights/*
+!weights/.gitkeep
+face_alignment/mtcnn_pytorch/src/weights/*.npy
+
+# Runtime output and temporary files
+runtime/
+output/
+*.log
+.env
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
