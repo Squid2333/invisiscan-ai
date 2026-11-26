@@ -1,10 +1,24 @@
 -- 0001_init.sql: initial schema for invisiscan-ai.
 -- Target: PostgreSQL 16 + pgvector >= 0.7. Field semantics: docs/DATA_MODEL.md.
 -- All times are timestamptz; the business time zone is Asia/Shanghai.
+-- Applied on both host A and the cloud database; each table has a single
+-- writer (see docs/DATA_MODEL.md, "双库与写入方"). Per-site steps that must
+-- follow this file live in migrations/site/.
 
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Keeps updated_at current on ordinary UPDATEs. Triggers do not fire for rows
+-- applied by logical replication, so on the subscriber the value copied from
+-- the writer is kept as is.
+CREATE FUNCTION set_updated_at() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    NEW.updated_at := now();
+    RETURN NEW;
+END;
+$$;
 
 -- ---------------------------------------------------------------------------
 -- Dimensions
@@ -31,8 +45,13 @@ CREATE TABLE cameras (
     -- Per-camera overrides of algorithm defaults (ROI, depth gate, NMS, ...).
     params       jsonb       NOT NULL DEFAULT '{}'::jsonb,
     enabled      boolean     NOT NULL DEFAULT true,
-    created_at   timestamptz NOT NULL DEFAULT now()
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    -- Written by invisiscan-main in the cloud and maintained by the trigger
+    -- below; host A polls it to detect config changes.
+    updated_at   timestamptz NOT NULL DEFAULT now()
 );
+CREATE TRIGGER cameras_set_updated_at BEFORE UPDATE ON cameras
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ---------------------------------------------------------------------------
 -- Events and tracks
@@ -81,6 +100,10 @@ CREATE TABLE tracks (
     category_probs      jsonb,
     attempts            integer     NOT NULL DEFAULT 0,
     last_error          text,
+    -- Post-track task claiming (SELECT ... FOR UPDATE SKIP LOCKED).
+    next_attempt_at     timestamptz NOT NULL DEFAULT now(),  -- backoff after a failure
+    locked_by           text,                                -- worker id holding the task
+    locked_until        timestamptz,                         -- lease expiry
     created_at          timestamptz NOT NULL DEFAULT now(),
     updated_at          timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT tracks_time_order CHECK (ended_at IS NULL OR ended_at >= started_at),
@@ -120,10 +143,21 @@ CREATE TABLE track_images (
     seq        integer     NOT NULL,   -- same numbering as track_points.seq
     object_key text        NOT NULL UNIQUE,
     quality    real,                   -- DSL-FIQA score, face images only
-    selected   boolean     NOT NULL DEFAULT false,  -- 6-image sample for review
-    created_at timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (track_id, kind, seq)
+    -- Up to 10 body images per track, evenly spaced in time, uploaded to the
+    -- cloud object store as compressed previews.
+    selected    boolean     NOT NULL DEFAULT false,
+    preview_key text        UNIQUE,    -- previews/tracks/{track_uuid}/{seq:05d}.jpg
+    uploaded_at timestamptz,           -- set by host A after the upload succeeds
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (track_id, kind, seq),
+    CONSTRAINT track_images_preview_is_selected_body CHECK (
+        preview_key IS NULL OR (selected AND kind = 'body')
+    ),
+    CONSTRAINT track_images_uploaded_has_key CHECK (uploaded_at IS NULL OR preview_key IS NOT NULL)
 );
+-- Upload backlog.
+CREATE INDEX track_images_pending_upload ON track_images (track_id)
+    WHERE selected AND uploaded_at IS NULL;
 
 -- ---------------------------------------------------------------------------
 -- Identity and biometric templates
@@ -137,34 +171,58 @@ CREATE TABLE subjects (
     external_id text        UNIQUE,   -- legacy users.id for migrated known people
     enrolled_at timestamptz NOT NULL DEFAULT now(),
     active      boolean     NOT NULL DEFAULT true,
+    -- Set by invisiscan-main when this subject is merged into another one.
+    -- Chains are flattened on merge, so this always points at a live subject.
+    merged_into bigint      REFERENCES subjects (id),
+    deleted_at  timestamptz,  -- soft delete; physical deletes are local cleanup only
     created_at  timestamptz NOT NULL DEFAULT now(),
     updated_at  timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT subjects_known_has_name CHECK (kind = 'unknown' OR name IS NOT NULL)
+    CONSTRAINT subjects_known_has_name CHECK (kind = 'unknown' OR name IS NOT NULL),
+    CONSTRAINT subjects_not_merged_into_self CHECK (merged_into IS NULL OR merged_into <> id)
 );
+CREATE TRIGGER subjects_set_updated_at BEFORE UPDATE ON subjects
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 CREATE TABLE face_templates (
     id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     uuid              uuid        NOT NULL UNIQUE,
     subject_id        bigint      NOT NULL REFERENCES subjects (id),
-    -- AdaFace ir_50 output, already unit length. NULL only for inactive
-    -- legacy images where MTCNN found no face (kept for manual review).
-    embedding         vector(512),
-    model_name        text        NOT NULL,
     quality           real,
     object_key        text        NOT NULL UNIQUE,
     source            text        NOT NULL
                       CHECK (source IN ('legacy_import', 'auto_enroll', 'manual')),
     source_track_id   bigint      REFERENCES tracks (id),
     legacy_picture_id bigint      UNIQUE,
+    -- Enabled flag, controlled by invisiscan-main. A template takes part in
+    -- recognition only once it also has a face_embeddings row with
+    -- status = 'ready'.
     active            boolean     NOT NULL DEFAULT true,
-    created_at        timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT face_templates_active_has_embedding
-        CHECK (NOT active OR embedding IS NOT NULL)
+    deleted_at        timestamptz,  -- soft delete
+    created_at        timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX face_templates_subject ON face_templates (subject_id);
-CREATE INDEX face_templates_model_active ON face_templates (model_name) WHERE active;
-CREATE INDEX face_templates_embedding_hnsw ON face_templates
-    USING hnsw (embedding vector_cosine_ops) WHERE active;
+
+-- Features are written only by host A, so templates inserted by
+-- invisiscan-main never need an update from A. One row per template and model.
+CREATE TABLE face_embeddings (
+    template_id bigint      NOT NULL REFERENCES face_templates (id) ON DELETE CASCADE,
+    model_name  text        NOT NULL,   -- e.g. adaface_ir50_ms1mv2
+    status      text        NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'ready', 'failed')),
+    -- AdaFace ir_50 output, already unit length. Set only when ready.
+    embedding   vector(512),
+    norm        real,                   -- feature norm before normalization
+    attempts    integer     NOT NULL DEFAULT 0,
+    error       text,                   -- last failure reason
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    updated_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (template_id, model_name),
+    CONSTRAINT face_embeddings_ready_has_embedding CHECK ((status = 'ready') = (embedding IS NOT NULL)),
+    CONSTRAINT face_embeddings_failed_has_error CHECK (status <> 'failed' OR error IS NOT NULL)
+);
+CREATE INDEX face_embeddings_ready ON face_embeddings (model_name) WHERE status = 'ready';
+CREATE TRIGGER face_embeddings_set_updated_at BEFORE UPDATE ON face_embeddings
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- Reserved for ReID; dimension to be fixed once the model is chosen.
 CREATE TABLE body_templates (
@@ -248,5 +306,39 @@ CREATE TABLE recordings (
     CONSTRAINT recordings_time_order CHECK (ended_at > started_at)
 );
 CREATE INDEX recordings_camera_time ON recordings (camera_id, started_at, ended_at);
+
+-- ---------------------------------------------------------------------------
+-- Domain events and heartbeats (written by host A, replicated to the cloud)
+-- ---------------------------------------------------------------------------
+
+-- Consumers read by id cursor. Writers take pg_advisory_xact_lock(<fixed key>)
+-- before inserting, so id order equals commit order.
+CREATE TABLE domain_events (
+    id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    type           text        NOT NULL,   -- e.g. recognition.created, event.closed
+    aggregate_uuid uuid,                   -- uuid of the event / track / subject concerned
+    payload        jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    occurred_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX domain_events_occurred ON domain_events (occurred_at);
+
+-- Insert-only: one row per heartbeat (every 10 s), so replication never
+-- updates a hot row. Latest row per instance_id is the current state.
+CREATE TABLE pipeline_heartbeats (
+    id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    instance_id     text        NOT NULL,
+    version         text        NOT NULL,
+    camera_ids      bigint[]    NOT NULL DEFAULT '{}',   -- cameras this instance owns
+    -- Per camera: stream state, last frame time, last RTCP SR time.
+    camera_status   jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    -- Per inference service: reachable or not.
+    services        jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    pending_tasks   integer     NOT NULL DEFAULT 0,
+    pending_uploads integer     NOT NULL DEFAULT 0,
+    disk_used_ratio real,                                 -- host A data disk, 0..1
+    reported_at     timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX pipeline_heartbeats_latest ON pipeline_heartbeats (instance_id, reported_at DESC);
+CREATE INDEX pipeline_heartbeats_reported ON pipeline_heartbeats (reported_at);
 
 COMMIT;

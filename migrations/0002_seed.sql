@@ -1,4 +1,6 @@
 -- 0002_seed.sql: the single location and camera of the old deployment.
+-- Run on the cloud database only. Host A receives these rows through the
+-- initial sync of its subscription to pub_cloud.
 -- The old code used MYSQL_LOCATION_ID=1 and MYSQL_CAMERA_ID=1; keep ids 1
 -- so logs are easy to compare. Edit names and stream_url before applying.
 
