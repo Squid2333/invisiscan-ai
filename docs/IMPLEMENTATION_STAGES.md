@@ -26,6 +26,8 @@
 1. **固定契约和测试基线。** 核对现有 proto、DDL 与 `DATA_MODEL.md` 的字段和写入方。主要表、任务认领字段、`face_embeddings`、`domain_events`、`pipeline_heartbeats` 已在 `0001_init.sql`；保持其不变，通过后续迁移补充可执行约束。站点脚本按 `migrations/site/README.md` 的顺序运行；`0002_seed.sql` 只在云端执行。建立 `buf lint`、`buf breaking` 和迁移顺序检查。
 2. **生成项目骨架。** 建 Go 模块、配置校验、proto 生成、pgx/sqlc、结构化日志与退出流程；Python 起一个按既有 `Perceive` 协议返回固定 `SessionReady`/`FrameResult` 的 mock 服务。设置本机 PostgreSQL、pgvector、两个站点的测试数据库及可重复的启动命令。
 3. **先实现数据层。** 用真实 PostgreSQL 测试事件、轨迹、点、图片、识别日志的读写；确认“首条确认轨迹同时创建事件和轨迹”、批量点写入、状态条件更新和 `recognition_logs` 唯一约束。测试主机 A 与云端的写入方边界、双向表 ID 错开和 `origin = none`，包括断连后补同步。
+
+   **状态：已完成（2026-11-27）。** `go/internal/store` 已实现事件/轨迹事务创建、`CopyFrom` 批量写点、图片读写、条件结束轨迹/事件、识别日志幂等写入和读回。真实 PostgreSQL 16 双库集成测试通过：首条轨迹失败时事务回滚；事件、轨迹、点、图片、识别日志读写通过；`(track_id, modality)` 冲突不重复插入；A 与云端 publication 写入边界符合契约；事件依赖行 A→云复制、云端位置/相机配置云→A复制；`subjects` 与 `face_templates` 双向插入使用奇数/偶数 ID 且不回环；禁用订阅期间 A 的记录在恢复后追平。运行命令：`go test ./go/internal/store -count=1`（需设置 `INVISISCAN_TEST_DSN`、`INVISISCAN_CLOUD_TEST_DSN`；双库复制还需 `INVISISCAN_REPLICATION_TEST=1`、`INVISISCAN_A_TEST_DSN`）。
 4. **接通假的实时链路。** 用假帧源、mock PerceptionService 和可替换的确定性跟踪桩驱动事件 FSM，验证检测框数开关事件、3 帧确认、20 帧缺席关闭、短轨迹丢弃、事件起止时间回写与轨迹点坐标。跟踪桩只用于本阶段的链路测试，阶段三换成 Go BOTSORT。
 5. **接通恢复路径。** 在写点、确认和关闭处模拟进程中断；重启后只 reconcile 当前实例持有的相机，已确认轨迹能结束并进入待处理状态，重复启动不生成重复事件。相机归属的 advisory lock 与限定相机的 reconcile 在这一阶段设计并测试，避免阶段三接入真实相机后出现全表关单。
 

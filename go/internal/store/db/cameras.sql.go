@@ -50,3 +50,13 @@ func (q *Queries) ListEnabledCameras(ctx context.Context) ([]Camera, error) {
 	}
 	return items, nil
 }
+
+const lockCamera = `-- name: LockCamera :one
+SELECT id FROM cameras WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockCamera(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRow(ctx, lockCamera, id)
+	err := row.Scan(&id)
+	return id, err
+}
