@@ -265,7 +265,9 @@ track ended
 invisiscan-ai/
 ├── docs/
 │   ├── ARCHITECTURE.md          本文
-│   └── DATA_MODEL.md            ER 模型、字段语义、人脸底库迁移
+│   ├── DATA_MODEL.md            ER 模型、字段语义、人脸底库迁移
+│   ├── IMPLEMENTATION_PLAN.md   部署、复制与运维细节
+│   └── IMPLEMENTATION_STAGES.md 分阶段实施、验收与待决问题
 ├── proto/invisiscan/v1/
 │   ├── common.proto             Image、BBox 等共享消息
 │   ├── perception.proto         PerceptionService（RGBDSort 环境）
@@ -307,18 +309,4 @@ invisiscan-ai 不对外提供业务接口。论文演示和前端需要的事件
 
 ## 10. 分阶段实施
 
-每个阶段都有可验证的产出，避免"全部写完再调试"。
-
-**阶段一：骨架与数据层。** 建库建表跑通迁移，Go 侧 `store` 层加集成测试，Python 侧起一个只返回固定结果的 mock PerceptionService，Go 侧能完整跑一遍"假帧 → 假检测 → 跟踪 → 写库"的链路。此阶段验证数据模型和状态机，不碰任何模型。
-
-**阶段二：采集、帧时间与感知服务。** 写好 ffmpeg 推流命令和 `mediamtx.yml`，在实际摄像头上确认 v4l2 格式、旋转方向和码率。Go 侧用 gortsplib 拉流，记录 RTCP SR 到达间隔，实测帧时间相对采集时刻的偏移。把 YOLO26m-seg、VideoDepthAnything、深度过滤和 NMS、BOTSORT 的 ReID 特征提取和 GMC 搬进 PerceptionService，对同一段录像逐帧比对 Python 服务输出和旧 `RGBsort.py` 中间结果（框、深度、门限），要求一致。
-
-**阶段三：跟踪器移植。** 先给旧 `RGBsort.py` 加一个录制开关，把每帧送进 `tracker.update` 的检测框、分数、ReID 特征、GMC 矩阵和输出的轨迹行写成 JSONL，作为黄金数据。Go 的 BOTSORT 以同样输入回放，逐帧比对输出的轨迹 ID、框（容差 1e-3 像素）和 removed 集合。这一步只测纯数学，不需要 GPU，可以进 CI。黄金数据要覆盖：多人交叉、短暂遮挡后找回、超过 9 帧丢失后的新 ID、只出现 1~2 帧的误检。这是整个重构里风险最高的一步，LAPJV 相等代价的差异按第 5 节处理。
-
-**阶段四：轨迹分类与人脸识别。** LSTM 和 yolo11m-seg 进 PerceptionService，MTCNN、AdaFace、DSL-FIQA 进 FaceService。旧 `pictures` 表迁移脚本见 `DATA_MODEL.md`。用旧链路已有的轨迹目录做回放，比对 `category` 和识别结果。阈值（`match_threshold = 0.35`、`enroll_threshold = 0.349`、质量下限 0.15、LSTM 置信度 0.3、最少 5 点、最少 15 步）全部提到配置。
-
-**阶段五：归档与运维。** 录制切片登记、Prometheus 指标（帧率、丢帧数、推理延迟、在途任务数、识别命中率）、docker-compose 一键起。
-
-**阶段六（可选）：ReID 接入。** 待你拿到 PersonViT 相关代码后按第 8 节的契约填入。
-
-旧项目保持原样不动，新项目并行开发。阶段三的回归比对需要两边同时可运行，所以在整个重构期间不要删除 `legacy/RGBDSort/` 和 `legacy/AdaFace-master/`。
+实施顺序、逐步验收、依赖、难点和待决问题见 [分阶段实施计划](IMPLEMENTATION_STAGES.md)。旧项目在重构期间保持原样、可运行，作为阶段二到四的回归基线。

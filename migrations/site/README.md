@@ -5,11 +5,12 @@
 | 顺序 | 云端 | 主机 A |
 |---|---|---|
 | 1 | `0001_init.sql`、`0002_seed.sql` | `0001_init.sql` |
-| 2 | `cloud/10_id_sequences.sql`：`subjects`、`face_templates` 用偶数 ID | `a/10_id_sequences.sql`：用奇数 ID |
-| 3 | `cloud/20_publication.sql`：建 `pub_cloud` | `a/20_publication.sql`：建 `pub_a` |
-| 4 | `cloud/30_subscription.sql`：订阅 `pub_a`，`copy_data = false` | |
-| 5 | | `a/30_subscription.sql`：订阅 `pub_cloud`，`copy_data = true` |
-| 6 | | 等 `pg_subscription_rel` 全部为 `r`，再启动 pipeline |
+| 2 | `0003_contract_checks.sql` | `0003_contract_checks.sql` |
+| 3 | `cloud/10_id_sequences.sql`：`subjects`、`face_templates` 用偶数 ID | `a/10_id_sequences.sql`：用奇数 ID |
+| 4 | `cloud/20_publication.sql`：建 `pub_cloud` | `a/20_publication.sql`：建 `pub_a` |
+| 5 | `cloud/30_subscription.sql`：订阅 `pub_a`，`copy_data = false` | |
+| 6 | | `a/30_subscription.sql`：订阅 `pub_cloud`，`copy_data = true` |
+| 7 | | 等 `pg_subscription_rel` 全部为 `r`，再启动 pipeline |
 
 第 4 步必须在第 5 步之前，并且这时 A 上还没有写入任何业务数据。原因见 `a/30_subscription.sql` 的注释。
 

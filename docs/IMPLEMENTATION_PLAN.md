@@ -55,7 +55,7 @@ docs 已经定下语言和中间件，这里补到库和工具一级。版本策
 
 DATA_MODEL "恢复未处理轨迹" 的 reconcile SQL 是全表操作。现在 A 上只有一个 pipeline 进程，这没有问题。但只要以后出现第二个进程（第二台算力主机，或者 A 上按相机拆分进程），任何一个进程重启都会关掉另一个进程正在进行的事件。
 
-修改方式：每个相机用 A 本地库上的会话级 advisory lock（`pg_try_advisory_lock(camera_id)`）确定归属，reconcile 的三条 SQL 都加上 `AND camera_id = ANY($owned)`。这个改动很小，建议在阶段三实现。
+修改方式：每个相机用 A 本地库上的会话级 advisory lock（`pg_try_advisory_lock(camera_id)`）确定归属，reconcile 的三条 SQL 都加上 `AND camera_id = ANY($owned)`。在阶段一的假帧与崩溃恢复测试中实现并验证，阶段三接入真实跟踪器时再回归。
 
 ### 3.2 post-track 任务的认领
 
@@ -254,19 +254,9 @@ A 到云端的数据通道不用 Redis。这条链路最重要的是断网期间
 
 ## 6. 实施计划
 
-阶段一到阶段六与 ARCHITECTURE §10 一致，本表只列追加内容。
+逐步工作、阶段验收与待决问题见 [分阶段实施计划](IMPLEMENTATION_STAGES.md)。本文件第 3 至 5 节提供其中部署、双库复制和运维工作的详细依据。
 
-| 阶段 | docs 原定内容 | 追加内容 |
-|---|---|---|
-| 一 | 骨架与数据层 | 按 4.4 节改 DDL：`face_embeddings`、`domain_events`、`pipeline_heartbeats`、任务认领三列、软删除列、`track_images.preview_key` 和 `uploaded_at`；按站点错开的 ID 序列；双库复制的集成测试 |
-| 二 | 采集、帧时间、感知服务 | WireGuard 隧道；A 的时间同步；gRPC 的 TCP 和 socket 两种地址；录像保留 4 天（`recordDeleteAfter: 96h`），实测推流的实际码率；实测单 GPU 能带几路相机 |
-| 三 | 跟踪器移植 | 3.1 节相机锁与限定相机的 reconcile |
-| 四 | 分类与人脸识别 | 3.2 节任务认领；4.6 节领域事件；模板特征计算 worker；不做 Fay 通知 |
-| 五 | 归档、运维（docs 原定的查询 API 移到 invisiscan-main） | 4.5 节选图、压缩上传与 MediaMTX 反向代理；4.7 节 Vector 日志、心跳、指标；4.8 节端点；第 5 节备份与告警；预留 `ops_commands` |
-| 六 | ReID（可选） | 不变 |
-| 七（可选） | 无 | 算法迭代与加速：验收标准从"与旧链路逐像素一致"改为评测集指标（检测 mAP、跟踪 IDF1/HOTA、人脸 TAR@FAR、LSTM 分类准确率）；然后做模型升级、ONNX/TensorRT 加速 |
-
-阶段七的前提是阶段二到四已经建好黄金数据和回归工具，这样架构迁移和算法改动可以分开验证。
+可选阶段七是算法迭代与加速：阶段二到四的等价基线验收通过后，再用评测集指标（检测 mAP、跟踪 IDF1/HOTA、人脸 TAR@FAR、LSTM 分类准确率）评价模型升级和 ONNX/TensorRT 加速。
 
 ## 7. 已确认的参数
 

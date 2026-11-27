@@ -6,8 +6,9 @@
 
 | 文档 | 内容 |
 |---|---|
-| `docs/ARCHITECTURE.md` | 拓扑、帧时间、状态机、存储、链路时序、仓库结构、分阶段实施 |
+| `docs/ARCHITECTURE.md` | 拓扑、帧时间、状态机、存储、链路时序、仓库结构 |
 | `docs/DATA_MODEL.md` | 每张表的字段语义、双库与写入方、典型查询 |
+| `docs/IMPLEMENTATION_STAGES.md` | 分阶段实施步骤、验收、难点和待决问题 |
 | `docs/IMPLEMENTATION_PLAN.md` | 技术栈、A 与云端的部署和同步、运维 |
 | `docs/ADMIN_API.md` | invisiscan-main 的接口和跨项目契约。本项目不实现这些接口 |
 | `migrations/` | DDL 是 schema 的唯一来源，sqlc 从这里生成代码 |
@@ -64,5 +65,5 @@
 ## 测试
 
 - 测试覆盖行为和与旧链路的一致性，不为每个私有函数写测试。
-- 跟踪器用旧 `RGBsort.py` 录制的 JSONL 黄金数据做逐帧回放（ARCHITECTURE §10 阶段三），纯数学部分进 CI。
+- 跟踪器用旧 `RGBsort.py` 录制的 JSONL 黄金数据做逐帧回放（IMPLEMENTATION_STAGES 阶段三），纯数学部分进 CI。
 - 数据库相关的测试用 testcontainers 起真实的 PostgreSQL，不 mock 数据库。双库复制有一个集成测试。

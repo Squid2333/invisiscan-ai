@@ -1,6 +1,6 @@
 # 数据模型设计
 
-目标库：PostgreSQL 16 + pgvector 0.7+。完整 DDL 在 `migrations/0001_init.sql`，同一套 DDL 在主机 A 本地库和云端主库都执行；按站点执行的脚本在 `migrations/site/`。本文说明设计取舍与字段语义。
+目标库：PostgreSQL 16 + pgvector 0.7+。基础 DDL 在 `migrations/0001_init.sql`，后续编号迁移按顺序在主机 A 本地库和云端主库都执行；按站点执行的脚本在 `migrations/site/`。本文说明设计取舍与字段语义。
 
 ## 设计原则
 
@@ -88,6 +88,8 @@ domain_events、pipeline_heartbeats：独立的追加表，不与上面的表建
 数据量：一条轨迹通常几十到几百个点，实验室门口场景每天几千条轨迹以内，日增十万行量级。PostgreSQL 单表在这个规模下几年内都不需要分区，所以不做分区。以后真要分区，主键需要改成包含 `frame_time`，到时再迁移。
 
 `track_images` 登记轨迹产出的图像：`track_id`、`kind`（`body` / `seg` / `face`）、`seq`（与 `track_points.seq` 同一编号，可以按 seq 关联到这张图对应的框和时间）、`object_key`、`quality`（人脸图的 FIQA 分，只有走过第二轮的才有，其他为 NULL）、`selected`（布尔，标记被选为预览图的 body 图，每条轨迹最多 10 张）、`preview_key`（压缩预览图在云端对象存储中的键 `previews/tracks/{track_uuid}/{seq:05d}.jpg`）、`uploaded_at`（A 上传成功后写入）、`created_at`。主键 `(track_id, kind, seq)`。
+
+`0003_contract_checks.sql` 将部分字段语义落实为约束：`selected` 只能用于 body 图，`quality` 只能用于 face 图，图像序号、轨迹帧数、重试次数和事件轨迹计数不能为负，录像大小不能为负，磁盘占用比须在 0 到 1 之间。每条轨迹最多 10 张预览图是选图逻辑负责的跨行约束。
 
 预览图在轨迹 `started_at` 到 `ended_at` 之间按时间等分取最多 10 张，替代旧链路"去掉前 3 张、后 2 张再均匀采样 6 张"的规则（选图规则见架构文档第 7 节）。只有压缩图上传：长边缩到 512 像素、JPEG 质量 75。`object_key` 指向 A 本地的原图（质量 95），不上传。约束保证只有 `selected` 的 body 图才有 `preview_key`，有 `uploaded_at` 必须先有 `preview_key`。invisiscan-main 只展示 `uploaded_at` 不为空的图。
 
