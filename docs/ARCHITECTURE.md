@@ -263,6 +263,13 @@ track ended
 
 ```
 invisiscan-ai/
+├── buf.yaml                    proto 模块、lint 与 breaking 规则
+├── buf.gen.yaml                固定版本的 Go/Python 代码生成插件
+├── go.mod / go.sum             Go 依赖锁定
+├── sqlc.yaml                   DDL 与 Go 查询代码生成配置
+├── Makefile                    检查、生成和开发环境命令
+├── config/
+│   └── dev.yaml                本地 pipeline 配置
 ├── docs/
 │   ├── ARCHITECTURE.md          本文
 │   ├── DATA_MODEL.md            ER 模型、字段语义、人脸底库迁移
@@ -273,6 +280,7 @@ invisiscan-ai/
 │   ├── perception.proto         PerceptionService（RGBDSort 环境）
 │   ├── face.proto               FaceService（AdaFace 环境）
 │   └── reid.proto               ReIDService（预留）
+├── gen/go/invisiscan/v1/        从 proto 生成的 Go 消息与客户端
 ├── go/
 │   ├── cmd/pipeline/main.go     进程入口、配置加载、优雅退出
 │   ├── internal/config/         配置结构与校验
@@ -281,11 +289,13 @@ invisiscan-ai/
 │   ├── internal/track/          BOTSORT 移植：kalman / matching / lapjv / tracker
 │   ├── internal/pipeline/       事件/轨迹状态机、post-track worker
 │   ├── internal/recognize/      底库打分、陌生人注册
-│   ├── internal/store/          仓储层（pgx）、reconcile
+│   ├── internal/store/          pgx 仓储、sqlc 查询和生成代码、reconcile
 │   ├── internal/blob/           BlobStore 接口 + 本地/对象存储实现
 │   └── internal/api/            基础设施端点：录制切片登记、健康检查、/metrics
 ├── python/
 │   ├── perception/              PerceptionService，uv 锁文件，依赖与 RGBDSort 一致
+│   │   └── mock_server.py        阶段一的固定响应开发服务
+│   ├── gen/invisiscan/v1/        从 proto 生成的 Python 消息与服务桩
 │   ├── face/                    FaceService，uv 锁文件，写死 torch 版本
 │   └── tools/                   旧库人脸底库迁移、跟踪回归录制脚本
 ├── legacy/                      旧链路代码，重构期间保持可运行
@@ -297,13 +307,14 @@ invisiscan-ai/
 │   └── site/                    按站点执行：ID 序列错开、publication、subscription
 ├── testdata/                    回归用录像与旧链路输出（不进 Git）
 ├── deploy/
+│   ├── dev/                      本地 PostgreSQL 双库与 Perception mock
 │   ├── docker-compose.yml       A 上的 postgres / mediamtx / perception / face / pipeline / vector / prometheus
 │   ├── mediamtx.yml             runOnInit 推流、record、segment hook
 │   └── wireguard/               A 侧 WireGuard 客户端配置模板（密钥不进仓库）
 └── Makefile                     proto 生成、构建、迁移、测试
 ```
 
-Go 与两个 Python 服务各自独立构建，唯一的共享物是 `proto/`，由 `make proto` 分别生成各侧代码。旧项目里的模型代码（`video_depth_anything/`、`LSTM/`、`face_alignment/`、`DSLFIQA/`、`net.py`）原样复制进对应 Python 服务，只改导入路径和权重路径，不改算法。模型权重不进仓库，沿用旧项目的做法通过配置指向本地路径，并在 `docs/` 下保留权重清单。
+Go 与两个 Python 服务各自独立构建，唯一的共享契约是 `proto/`；`make proto-gen` 生成各侧代码，`make sqlc-gen` 从迁移和查询生成 Go 数据访问代码。旧项目里的模型代码（`video_depth_anything/`、`LSTM/`、`face_alignment/`、`DSLFIQA/`、`net.py`）原样复制进对应 Python 服务，只改导入路径和权重路径，不改算法。模型权重不进仓库，沿用旧项目的做法通过配置指向本地路径，并在 `docs/` 下保留权重清单。
 
 invisiscan-ai 不对外提供业务接口。论文演示和前端需要的事件、轨迹、识别日志和回放查询由 invisiscan-main 提供，它读云端库，清单见 `ADMIN_API.md`。`internal/api` 只保留基础设施端点，全部只监听本机或 WireGuard 地址：`POST /internal/recordings`（MediaMTX 回调，只监听 127.0.0.1，校验共享 token）、`/healthz`、`/readyz`、`/metrics`。
 

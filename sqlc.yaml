@@ -1,0 +1,13 @@
+version: "2"
+sql:
+  - engine: postgresql
+    schema:
+      - migrations/0001_init.sql
+      - migrations/0003_contract_checks.sql
+    queries: go/internal/store/query
+    gen:
+      go:
+        package: db
+        out: go/internal/store/db
+        sql_package: pgx/v5
+        emit_json_tags: true

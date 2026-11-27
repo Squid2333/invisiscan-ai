@@ -1,0 +1,5 @@
+instance_id: dev-pipeline
+database_url: postgres://invisiscan:invisiscan@127.0.0.1:54329/invisiscan_a?sslmode=disable
+perception_target: 127.0.0.1:50051
+max_message_bytes: 16777216
+startup_timeout: 10s

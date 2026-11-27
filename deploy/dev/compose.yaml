@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    command: ["postgres", "-c", "wal_level=logical"]
+    environment:
+      POSTGRES_USER: invisiscan
+      POSTGRES_PASSWORD: invisiscan
+      POSTGRES_DB: postgres
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - dev-postgres:/var/lib/postgresql/data
+      - ../../migrations:/migrations:ro
+      - ./init/01-init-databases.sh:/docker-entrypoint-initdb.d/01-init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U invisiscan -d postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  perception-mock:
+    build:
+      context: ../..
+      dockerfile: python/perception/Dockerfile
+    environment:
+      INVISISCAN_PERCEPTION_LISTEN: 0.0.0.0:50051
+      GRPC_MAX_MESSAGE_BYTES: "16777216"
+    ports:
+      - "127.0.0.1:50051:50051"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  dev-postgres:
