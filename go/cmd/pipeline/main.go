@@ -12,7 +12,6 @@ import (
 	"github.com/Squid2333/invisiscan-ai/gen/go/invisiscan/v1"
 	"github.com/Squid2333/invisiscan-ai/go/internal/config"
 	"github.com/Squid2333/invisiscan-ai/go/internal/pipeline"
-	"github.com/Squid2333/invisiscan-ai/go/internal/store"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -67,5 +66,5 @@ func run(configPath string, logger *slog.Logger) error {
 	defer conn.Close()
 
 	client := invisiscanv1.NewPerceptionServiceClient(conn)
-	return pipeline.RunMock(ctx, startupCtx, cfg, store.New(db), client, logger)
+	return pipeline.RunMock(ctx, startupCtx, cfg, db, client, logger)
 }

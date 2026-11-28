@@ -27,3 +27,6 @@ WHERE e.id = $1 AND e.status = 'open';
 -- name: GetEvent :one
 SELECT id, uuid, camera_id, started_at, ended_at, status, closed_reason, track_count, created_at
 FROM events WHERE id = $1;
+
+-- name: EventExists :one
+SELECT EXISTS (SELECT 1 FROM events WHERE uuid = $1);

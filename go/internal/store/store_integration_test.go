@@ -131,13 +131,21 @@ func TestPostgresStoreReadWrite(t *testing.T) {
 }
 
 func TestPostgresBidirectionalReplication(t *testing.T) {
-	if os.Getenv("INVISISCAN_REPLICATION_TEST") != "1" {
-		t.Skip("set INVISISCAN_REPLICATION_TEST=1 to run two-site replication checks")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	t.Cleanup(cancel)
+	if os.Getenv("INVISISCAN_TESTCONTAINERS") == "1" {
+		aPool, cloudPool := startReplicationSites(t, ctx)
+		checkBidirectionalReplication(t, ctx, aPool, cloudPool)
+		return
 	}
-	aPool := testPool(t, "INVISISCAN_A_TEST_DSN")
-	cloudPool := testPool(t, "INVISISCAN_CLOUD_TEST_DSN")
-	ctx := context.Background()
+	if os.Getenv("INVISISCAN_REPLICATION_TEST") != "1" {
+		t.Skip("set INVISISCAN_TESTCONTAINERS=1 or INVISISCAN_REPLICATION_TEST=1 to run two-site replication checks")
+	}
+	checkBidirectionalReplication(t, ctx, testPool(t, "INVISISCAN_A_TEST_DSN"), testPool(t, "INVISISCAN_CLOUD_TEST_DSN"))
+}
 
+func checkBidirectionalReplication(t *testing.T, ctx context.Context, aPool, cloudPool *pgxpool.Pool) {
+	t.Helper()
 	for _, check := range []struct {
 		pool *pgxpool.Pool
 		sub  string
@@ -177,6 +185,12 @@ func TestPostgresBidirectionalReplication(t *testing.T) {
 	if err := aPool.QueryRow(ctx, "SELECT id FROM cameras WHERE name=$1", camName).Scan(&cameraID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := cloudPool.Exec(ctx, "UPDATE cameras SET width=800, fps=10 WHERE id=$1", cameraID); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool {
+		return exists(ctx, aPool, "SELECT EXISTS(SELECT 1 FROM cameras WHERE id=$1 AND width=800 AND fps=10)", cameraID)
+	})
 
 	// The A-owned event aggregate and its dependent rows arrive at cloud.
 	aStore := New(aPool)
@@ -210,6 +224,10 @@ func TestPostgresBidirectionalReplication(t *testing.T) {
 	if _, err := aStore.CloseEvent(ctx, trackResult.EventID, "absence"); err != nil {
 		t.Fatal(err)
 	}
+	waitFor(t, func() bool {
+		return exists(ctx, cloudPool, `SELECT EXISTS(SELECT 1 FROM events e JOIN tracks t ON t.event_id=e.id
+			WHERE e.uuid=$1 AND e.status='closed' AND t.uuid=$2 AND t.status='ended')`, eventUUID, trackUUID)
+	})
 
 	// Both sites insert into subjects. Odd/even identity ranges prevent ID collisions;
 	// origin=none prevents the subscriber from echoing the row back.
@@ -247,12 +265,25 @@ func TestPostgresBidirectionalReplication(t *testing.T) {
 	if countUUID(ctx, aPool, "face_templates", aTemplateUUID) != 1 || countUUID(ctx, cloudPool, "face_templates", aTemplateUUID) != 1 {
 		t.Fatal("A template was not replicated exactly once")
 	}
+	if countUUID(ctx, aPool, "face_templates", cloudTemplateUUID) != 1 || countUUID(ctx, cloudPool, "face_templates", cloudTemplateUUID) != 1 {
+		t.Fatal("cloud template was not replicated exactly once")
+	}
 
 	// Cloud owns camera configuration; A receives it. A-owned domain events catch up
 	// after the cloud subscription is disabled and re-enabled to simulate a link outage.
 	if _, err := cloudPool.Exec(ctx, "ALTER SUBSCRIPTION sub_a DISABLE"); err != nil {
 		t.Fatalf("disable A subscription: %v", err)
 	}
+	reenabled := false
+	defer func() {
+		if !reenabled {
+			restoreCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if _, err := cloudPool.Exec(restoreCtx, "ALTER SUBSCRIPTION sub_a ENABLE"); err != nil {
+				t.Errorf("restore A subscription: %v", err)
+			}
+		}
+	}()
 	eventType := "integration.replication." + newTestUUID()
 	if _, err := aPool.Exec(ctx, `INSERT INTO domain_events(type,payload) VALUES($1,'{}'::jsonb)`, eventType); err != nil {
 		t.Fatal(err)
@@ -260,6 +291,7 @@ func TestPostgresBidirectionalReplication(t *testing.T) {
 	if _, err := cloudPool.Exec(ctx, "ALTER SUBSCRIPTION sub_a ENABLE"); err != nil {
 		t.Fatalf("enable A subscription: %v", err)
 	}
+	reenabled = true
 	waitFor(t, func() bool {
 		return exists(ctx, cloudPool, "SELECT EXISTS(SELECT 1 FROM domain_events WHERE type=$1)", eventType)
 	})

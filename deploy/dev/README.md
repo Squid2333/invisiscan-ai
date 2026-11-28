@@ -15,7 +15,11 @@ make dev-pipeline
 
 SQL 查询按表/领域放在 `go/internal/store/query/`，读写方法由 sqlc 生成；事务编排留在 `store`，轨迹点和图片的批量写入使用 pgx `CopyFrom`。修改查询后运行 `make sqlc-gen`。Makefile 通过 `go run` 调用固定版本 sqlc，无需全局安装。
 
-`make dev-pipeline` 向 mock PerceptionService 以 8 FPS 发送 70 帧黑色 BGR 图，约 9 秒后退出。假图尺寸取 A 库中 `mock_camera_id` 对应的已启用相机，默认是云端 seed 复制来的相机 1。帧时间从本次回放起点按 125 毫秒递增，模拟 RTCP 帧时间。每次完整回放写入一条 `closed` 事件、两条 `ended` 轨迹和八个轨迹点。提前按 Ctrl-C 会刷盘并以 `shutdown` 结束正在进行的事件。
+`make dev-pipeline` 向 mock PerceptionService 以 8 FPS 发送 70 帧黑色 BGR 图，约 9 秒后退出。假图尺寸取 A 库中 `mock_camera_id` 对应的已启用相机，默认是云端 seed 复制来的相机 1。帧时间从本次回放起点按 125 毫秒递增，模拟 RTCP 帧时间。首次完整回放写入一条 `closed` 事件、两条 `ended` 轨迹和八个轨迹点。提前按 Ctrl-C 会刷盘并以 `shutdown` 结束正在进行的事件。
+
+每个相机的回放标识默认为 `default`。重启时，同一回放标识下已经落库的事件会跳过，确认事务尚未提交的事件可以在回放时重新确认。要用同样的固定帧创建一批新的样例数据，运行 `INVISISCAN_MOCK_REPLAY_ID=demo-2 make dev-pipeline`。
+
+启动时先尝试在 A 库取得相机的会话级 advisory lock。另一实例持有该相机时，本次启动报错退出。恢复与实时写入使用持锁的同一条连接。恢复事务按相机结束残留的 `confirmed` 轨迹、关闭 `open` 事件，结束时间取已落库的最后一帧。恢复后的 `ended` 轨迹留在数据库中等待分类。
 
 在仓库根目录运行以下命令，检查最新一次回放。默认事件持续 875 毫秒，关闭原因为 `absence`，两条轨迹各有 5 点和 3 点。
 
@@ -41,6 +45,8 @@ INVISISCAN_CLOUD_TEST_DSN='postgres://invisiscan:invisiscan@127.0.0.1:54329/invi
 INVISISCAN_TEST_PERCEPTION_TARGET='127.0.0.1:50051' \
 go test ./go/internal/pipeline -run '^TestMockRealtimePostgres$' -count=1 -v
 ```
+
+`make test-recovery` 使用 Testcontainers 启动 PostgreSQL 和 Python mock，无需先运行 `make dev-up`。测试在确认写点、追加写点、关闭事件时终止 pipeline 子进程，随后重启两次并核对持锁范围、事务回滚、待分类轨迹和数据去重。同一命令还用两个独立 PostgreSQL 容器执行站点迁移和双向复制测试。
 
 `make dev-down` 停止容器并保留数据库卷。容器重启会继续使用已初始化的数据库。
 

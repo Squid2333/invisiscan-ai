@@ -1,4 +1,4 @@
-.PHONY: contract-check migrate-check proto-lint proto-breaking proto-gen sqlc-gen dev-up dev-down dev-pipeline test-store dev-replication dev-replication-check
+.PHONY: contract-check migrate-check proto-lint proto-breaking proto-gen sqlc-gen dev-up dev-down dev-pipeline test-store test-recovery dev-replication dev-replication-check
 
 BUF_BREAKING_AGAINST ?= .git\#branch=main,subdir=proto
 BUF ?= npx buf
@@ -32,6 +32,9 @@ dev-pipeline:
 
 test-store:
 	go test ./go/internal/store -count=1
+
+test-recovery:
+	INVISISCAN_TESTCONTAINERS=1 go test ./go/internal/pipeline ./go/internal/store -run '^(TestPostgresCrashRecovery|TestPostgresBidirectionalReplication)$$' -count=1 -v
 
 dev-replication:
 	docker compose -f deploy/dev/compose.yaml exec -T postgres bash /dev-init/02-init-replication.sh

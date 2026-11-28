@@ -60,3 +60,14 @@ func (q *Queries) LockCamera(ctx context.Context, id int64) (int64, error) {
 	err := row.Scan(&id)
 	return id, err
 }
+
+const tryOwnCamera = `-- name: TryOwnCamera :one
+SELECT pg_try_advisory_lock($1::bigint)::boolean
+`
+
+func (q *Queries) TryOwnCamera(ctx context.Context, cameraID int64) (bool, error) {
+	row := q.db.QueryRow(ctx, tryOwnCamera, cameraID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}

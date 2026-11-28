@@ -50,6 +50,17 @@ func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) (int64
 	return id, err
 }
 
+const eventExists = `-- name: EventExists :one
+SELECT EXISTS (SELECT 1 FROM events WHERE uuid = $1)
+`
+
+func (q *Queries) EventExists(ctx context.Context, uuid pgtype.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, eventExists, uuid)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const getEvent = `-- name: GetEvent :one
 SELECT id, uuid, camera_id, started_at, ended_at, status, closed_reason, track_count, created_at
 FROM events WHERE id = $1

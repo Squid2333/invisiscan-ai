@@ -10,6 +10,7 @@ import (
 	invisiscanv1 "github.com/Squid2333/invisiscan-ai/gen/go/invisiscan/v1"
 	"github.com/Squid2333/invisiscan-ai/go/internal/config"
 	"github.com/Squid2333/invisiscan-ai/go/internal/store"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -98,14 +99,25 @@ func (t *mockTracker) Update(frame *invisiscanv1.FrameResult) ([]observation, []
 // 保证被打断的回放也能留下可读的库状态。
 //
 // 假帧尺寸直接取 A 库中该相机的 width/height（存储值），不在这里应用 rotation。
-func RunMock(ctx, startup context.Context, cfg config.Config, s *store.Store, client invisiscanv1.PerceptionServiceClient, logger *slog.Logger) error {
-	width, height, err := s.EnabledCameraDimensions(startup, cfg.MockCameraID)
+func RunMock(ctx, startup context.Context, cfg config.Config, pool *pgxpool.Pool, client invisiscanv1.PerceptionServiceClient, logger *slog.Logger) error {
+	session, err := store.AcquireCamera(startup, pool, cfg.MockCameraID)
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+	width, height, err := session.EnabledCameraDimensions(startup, cfg.MockCameraID)
 	if err != nil {
 		return fmt.Errorf("find enabled mock camera %d: %w", cfg.MockCameraID, err)
 	}
 	if int64(width)*int64(height) > int64(cfg.MaxMessageBytes)/3 {
 		return fmt.Errorf("mock camera %d BGR frames exceed max_message_bytes", cfg.MockCameraID)
 	}
+	recovery, err := session.Reconcile(startup, false)
+	if err != nil {
+		return err
+	}
+	logger.Info("camera reconciled", "camera_id", cfg.MockCameraID,
+		"ended_tracks", recovery.EndedTracks, "closed_events", recovery.ClosedEvents, "pending_tracks", len(recovery.Pending))
 
 	streamCtx, cancelStream := context.WithCancel(ctx)
 	defer cancelStream()
@@ -116,7 +128,7 @@ func RunMock(ctx, startup context.Context, cfg config.Config, s *store.Store, cl
 		return err
 	}
 
-	fsm := newEventFSM(s, cfg, logger, &mockTracker{})
+	fsm := newEventFSM(session.Store, cfg, logger, &mockTracker{})
 	// 帧时间是从本次回放起点算的模拟 RTCP 时间线，只在建源时锚定一次。
 	source := newMockFrames(time.Now().UTC(), width, height)
 	logger.Info("mock replay started", "camera_id", cfg.MockCameraID, "perception_target", cfg.PerceptionTarget)

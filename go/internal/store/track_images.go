@@ -19,7 +19,7 @@ func (s *Store) InsertTrackImages(ctx context.Context, trackID int64, images []T
 	if len(images) == 0 {
 		return nil
 	}
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := s.database.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin track images: %w", err)
 	}

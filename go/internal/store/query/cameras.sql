@@ -7,3 +7,6 @@ ORDER BY id;
 
 -- name: LockCamera :one
 SELECT id FROM cameras WHERE id = $1 FOR UPDATE;
+
+-- name: TryOwnCamera :one
+SELECT pg_try_advisory_lock(sqlc.arg(camera_id)::bigint)::boolean;

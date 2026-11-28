@@ -33,12 +33,15 @@ type observation struct {
 }
 
 // eventState 是正在攒的这一次“有人经过”。
-// id 是它进库之后拿到的编号，在第一条轨迹确认之前一直是 0，意思就是“还没进库”。
-// absentFrames 数“连着几帧没看到人”，数够了就把这次事件关掉。
-// uuid 是提前生成好的身份证，入库时用它把同一个事件的多条轨迹挂到同一行上。
+// id：进库之后拿到的编号，第一条轨迹确认之前是 0，也就是“还没进库”。
+// uuid：提前办好的身份证。假回放时会按“相机 + 起始帧号 + 回放标识”算成一个固定值，
+// 这样重启多少次算出来的都是同一个，才能判断“这次回放是不是已经写过了”。
+// absentFrames：连着几帧没看到人，数够了就把这次事件关掉。
+// replayed：这次回放上一遍已经完整写过库了，这一遍只跟着时间线走，不再重复记。
 type eventState struct {
 	id           int64
-	uuid         string
+	uuid         uuid.UUID
+	replayed     bool // 上一遍回放已经把这次事件写进库了。
 	absentFrames int
 }
 
@@ -85,7 +88,19 @@ func newEventFSM(s *store.Store, cfg config.Config, logger *slog.Logger, tr trac
 func (f *eventFSM) step(ctx context.Context, frame *invisiscanv1.FrameRequest, result *invisiscanv1.FrameResult) error {
 	if len(result.Detections) > 0 {
 		if f.event == nil {
-			f.event = &eventState{uuid: uuid.NewString()}
+			event := &eventState{uuid: uuid.New()}
+			if f.cfg.MockReplayID != "" {
+				// 假回放不随机生成身份证，而是按“相机 + 这次从第几帧开始 + 回放标识”算一个固定值：
+				// 同一段回放跑多少遍，算出来的 UUID 都一样，于是能查出“这次是不是已经写过了”。
+				event.uuid = uuid.NewSHA1(uuid.NameSpaceOID, fmt.Appendf(nil, "invisiscan/mock/%d/%d/%s", f.cfg.MockCameraID, frame.FrameSeq, f.cfg.MockReplayID))
+				var err error
+				// 库里已经有这个事件，说明上一遍已经跑完并提交了，这一遍就只走时间线、不再写库。
+				event.replayed, err = f.store.EventExists(ctx, event.uuid)
+				if err != nil {
+					return err
+				}
+			}
+			f.event = event
 		}
 		f.event.absentFrames = 0
 	} else if f.event != nil {
@@ -99,7 +114,8 @@ func (f *eventFSM) step(ctx context.Context, frame *invisiscanv1.FrameRequest, r
 
 	observations, removed := f.tracker.Update(result)
 	frameTime := result.FrameTime.AsTime()
-	if f.event != nil {
+	if f.event != nil && !f.event.replayed {
+		// 这一遍是重复回放，库里已经有了，就不再记点，只让时间线继续往下走。
 		sx := float64(frame.Image.Width) / float64(result.InferWidth)
 		sy := float64(frame.Image.Height) / float64(result.InferHeight)
 		for _, obs := range observations {
@@ -176,7 +192,7 @@ func (f *eventFSM) record(ctx context.Context, obs observation, frameTime time.T
 	}
 
 	created, err := f.store.CreateConfirmedTrack(ctx, store.ConfirmedTrack{
-		EventUUID: f.event.uuid, TrackUUID: uuid.NewString(), CameraID: f.cfg.MockCameraID, TrackerID: obs.ID,
+		EventUUID: f.event.uuid.String(), TrackUUID: uuid.NewString(), CameraID: f.cfg.MockCameraID, TrackerID: obs.ID,
 		StartedAt: track.points[0].FrameTime, ClockSource: "rtcp", Points: track.points,
 	})
 	if err != nil {

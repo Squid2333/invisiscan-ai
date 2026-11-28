@@ -73,7 +73,7 @@ type Track struct {
 //
 // 返回值里带着事件 ID 和轨迹 ID；相机不存在（或已被删掉）时返回 ErrNotFound。
 func (s *Store) CreateConfirmedTrack(ctx context.Context, in ConfirmedTrack) (out ConfirmedTrackResult, err error) {
-	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := s.database.Begin(ctx)
 	if err != nil {
 		return out, fmt.Errorf("begin confirmed track: %w", err)
 	}
@@ -149,7 +149,7 @@ func (s *Store) CreateConfirmedTrack(ctx context.Context, in ConfirmedTrack) (ou
 // 如果轨迹已经被结束掉了，更新会命中 0 行，这里就直接返回 ErrNotFound 并回滚，
 // 保证不会把点写进一条已经关掉的轨迹里。
 func (s *Store) AppendTrackPoints(ctx context.Context, trackID int64, points []Point) error {
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.database.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin append track points: %w", err)
 	}
