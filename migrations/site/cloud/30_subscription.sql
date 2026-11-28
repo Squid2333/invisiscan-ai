@@ -1,14 +1,14 @@
--- site/cloud/30_subscription.sql: cloud database only. Subscribes to host A's
--- pub_a. Run this before site/a/30_subscription.sql; see that file for the
--- full order.
+-- 仅在云端执行，用来订阅 A 的 pub_a。
+-- 先执行本文件，再执行 site/a/30_subscription.sql。
+-- 完整顺序见 A 的订阅脚本。
 --
--- copy_data = false: run this while host A has written nothing yet, so there
--- is nothing to copy, and the slot created on host A captures every later
--- change. Copying would also send back the cloud rows host A received during
--- its own initial sync and collide on primary keys.
+-- copy_data = false。趁 A 尚无业务数据时执行，不复制存量数据。
+-- 在 A 上创建的复制槽会记录之后的每次变更。
+-- 如果复制存量数据，A 初始同步时从云端收到的记录可能被发回，
+-- 导致主键冲突。
 --
--- The connection string goes in a psql variable; keep the password in the
--- postgres user's ~/.pgpass on the cloud server, not here:
+-- 通过 psql 变量传入连接字符串。
+-- 密码写在云端 postgres 用户的 ~/.pgpass 中。
 --   psql -d invisiscan -v a_conninfo='host=10.8.0.2 port=5432 dbname=invisiscan user=invisiscan_repl' \
 --        -f 30_subscription.sql
 
@@ -16,7 +16,7 @@ CREATE SUBSCRIPTION sub_a
     CONNECTION :'a_conninfo'
     PUBLICATION pub_a
     WITH (
-        origin    = none,  -- do not receive changes host A applied from the cloud
+        origin    = none,  -- 忽略 A 从云端收到的变更
         copy_data = false,
-        streaming = on     -- not 'parallel': domain_events cursors need commit order
+        streaming = on     -- 按提交顺序应用记录，保持 domain_events 游标有效
     );

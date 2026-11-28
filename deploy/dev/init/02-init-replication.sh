@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# The development container uses one PostgreSQL server with two databases. This
-# is intentionally the same publication/subscription order used by two hosts;
-# only the connection addresses differ. The script runs once on a fresh volume.
+# 开发容器用一个 PostgreSQL 实例运行两个数据库。
+# 发布和订阅的建立顺序与双主机部署一致，只有连接地址不同。
+# 此脚本只在新数据卷上运行一次。
 psql_admin=(psql --username="$POSTGRES_USER" --set=ON_ERROR_STOP=1)
 
 "${psql_admin[@]}" --dbname=invisiscan_cloud --file=/migrations/site/cloud/10_id_sequences.sql
@@ -17,18 +17,18 @@ if [[ $("${psql_admin[@]}" --dbname=invisiscan_a --tuples-only --no-align \
 	"${psql_admin[@]}" --dbname=invisiscan_a --file=/migrations/site/a/20_publication.sql
 fi
 
-# Site migrations deliberately keep credentials out of source control. The
-# development-only role has a fixed password so the two databases can connect
-# over the container's loopback address.
+# 站点迁移不会把连接凭据写入版本库。
+# 开发环境使用固定密码，让两个数据库通过容器内的回环地址连接。
+# 这个密码仅用于开发容器。
 "${psql_admin[@]}" --dbname=invisiscan_cloud \
 	--command="ALTER ROLE invisiscan_repl PASSWORD 'invisiscan_repl';"
 "${psql_admin[@]}" --dbname=invisiscan_a \
 	--command="ALTER ROLE invisiscan_repl PASSWORD 'invisiscan_repl';"
 
-# With both databases in one PostgreSQL cluster, CREATE SUBSCRIPTION cannot
-# create its publisher slot in the same command: slot creation waits for the
-# CREATE SUBSCRIPTION transaction itself. Pre-create the slots while no
-# business writes have started, then reference them with create_slot=false.
+# 两个数据库共用一个 PostgreSQL 集群时，不能让 CREATE SUBSCRIPTION 同时创建发布端的复制槽。
+# 创建槽会等待 CREATE SUBSCRIPTION 自己的事务结束。
+# 因此在业务数据写入前先创建槽，
+# 再通过 create_slot=false 引用已有的槽。
 "${psql_admin[@]}" --dbname=invisiscan_a \
 	--command="SELECT pg_create_logical_replication_slot('sub_a', 'pgoutput');"
 "${psql_admin[@]}" --dbname=invisiscan_cloud \

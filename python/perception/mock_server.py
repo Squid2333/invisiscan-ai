@@ -10,16 +10,16 @@ from invisiscan.v1 import common_pb2, perception_pb2, perception_pb2_grpc
 
 
 def mock_detections(seq: int, width: int, height: int):
-    # Two early hits form an unconfirmed event. In the next event the left
-    # track starts first but confirms after the right track because of a gap.
+    # 最初两帧的检测打开一个未确认事件。下一事件中左侧轨迹出现得更早，
+    # 但中途漏了几帧，因此比右侧轨迹更晚确认。
     left_depths = {23: float("nan"), 27: 2.5, 28: 3.5, 29: float("nan"), 30: 4.2}
     if seq in left_depths:
         lane, score, depth = 0.10, 0.90, left_depths[seq]
     elif seq in (1, 2, 24, 25, 26):
         lane, score, depth = 0.60, 0.90, 3.0
     elif seq == 50:
-        # The 19 preceding empty frames do not close the event. This box
-        # resets the absence count even though the tracker ignores its score.
+        # 前面 19 个空帧还不足以关闭事件。这一帧的低分框会被跟踪器丢弃，
+        # 但事件状态机仍会把缺席计数清零。
         lane, score, depth = 0.10, 0.08, 3.0
     else:
         return []

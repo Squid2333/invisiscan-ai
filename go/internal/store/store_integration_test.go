@@ -192,7 +192,7 @@ func checkBidirectionalReplication(t *testing.T, ctx context.Context, aPool, clo
 		return exists(ctx, aPool, "SELECT EXISTS(SELECT 1 FROM cameras WHERE id=$1 AND width=800 AND fps=10)", cameraID)
 	})
 
-	// The A-owned event aggregate and its dependent rows arrive at cloud.
+	// A 写入的事件和关联记录都应复制到云端。
 	aStore := New(aPool)
 	base := time.Now().UTC().Truncate(time.Millisecond)
 	eventUUID, trackUUID := newTestUUID(), newTestUUID()
@@ -229,8 +229,8 @@ func checkBidirectionalReplication(t *testing.T, ctx context.Context, aPool, clo
 			WHERE e.uuid=$1 AND e.status='closed' AND t.uuid=$2 AND t.status='ended')`, eventUUID, trackUUID)
 	})
 
-	// Both sites insert into subjects. Odd/even identity ranges prevent ID collisions;
-	// origin=none prevents the subscriber from echoing the row back.
+	// 两边都能向 subjects 插入记录。奇偶 ID 避免主键冲突，
+	// origin=none 避免把复制收到的记录发回原站点。
 	aUUID, cloudUUID := newTestUUID(), newTestUUID()
 	var aSubjectID, cloudSubjectID int64
 	if err := aPool.QueryRow(ctx, `INSERT INTO subjects(uuid,kind) VALUES($1,'unknown') RETURNING id`, aUUID).Scan(&aSubjectID); err != nil {
@@ -269,8 +269,8 @@ func checkBidirectionalReplication(t *testing.T, ctx context.Context, aPool, clo
 		t.Fatal("cloud template was not replicated exactly once")
 	}
 
-	// Cloud owns camera configuration; A receives it. A-owned domain events catch up
-	// after the cloud subscription is disabled and re-enabled to simulate a link outage.
+	// 相机配置由云端更新并复制到 A。禁用后重新启用云端订阅来模拟断连，
+	// 验证 A 在此期间写入的领域事件能追平。
 	if _, err := cloudPool.Exec(ctx, "ALTER SUBSCRIPTION sub_a DISABLE"); err != nil {
 		t.Fatalf("disable A subscription: %v", err)
 	}

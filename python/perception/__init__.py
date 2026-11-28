@@ -1,1 +1,1 @@
-"""Perception service package."""
+"""感知服务包。"""

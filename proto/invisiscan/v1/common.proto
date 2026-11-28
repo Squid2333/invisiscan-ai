@@ -4,11 +4,11 @@ package invisiscan.v1;
 
 option go_package = "github.com/Squid2333/invisiscan-ai/gen/go/invisiscan/v1;invisiscanv1";
 
-// Image carries one picture between Go and the Python services.
+// Image 在 Go 和 Python 服务之间传递一张图像。
 message Image {
   enum Encoding {
     ENCODING_UNSPECIFIED = 0;
-    // Packed BGR24, row-major, no padding. width and height are required.
+    // 采用紧密排列的 BGR24 格式，按行存储，无填充。必须提供 width 和 height。
     ENCODING_RAW_BGR24 = 1;
     ENCODING_JPEG = 2;
     ENCODING_PNG = 3;
@@ -19,8 +19,8 @@ message Image {
   int32 height = 4;
 }
 
-// Axis-aligned box in pixel coordinates, (x1, y1) top-left, (x2, y2)
-// bottom-right. The coordinate system is stated by the field that uses it.
+// 与坐标轴平行的像素框，(x1, y1) 是左上角，(x2, y2) 是右下角。
+// 具体坐标系由使用这个类型的字段说明。
 message BBox {
   float x1 = 1;
   float y1 = 2;
@@ -28,7 +28,7 @@ message BBox {
   float y2 = 4;
 }
 
-// Server-side timings, for metrics only.
+// 服务端耗时，仅用于指标统计。
 message Timings {
   float total_ms = 1;
   map<string, float> stages_ms = 2;

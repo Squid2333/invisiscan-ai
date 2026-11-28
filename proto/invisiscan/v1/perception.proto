@@ -7,20 +7,20 @@ import "invisiscan/v1/common.proto";
 
 option go_package = "github.com/Squid2333/invisiscan-ai/gen/go/invisiscan/v1;invisiscanv1";
 
-// PerceptionService runs in the RGBDSort environment (torch 2.1.1,
-// ultralytics 8.3.229). Perceive is stateful per stream: it owns the
-// VideoDepthAnything temporal window and the GMC previous frame. The other
-// RPCs are stateless.
+// PerceptionService 运行在 RGBDSort 环境中，使用 torch 2.1.1
+// 和 ultralytics 8.3.229。Perceive 为每条流分别维护
+// VideoDepthAnything 的时间窗口和 GMC 的上一帧。
+// 其他 RPC 都是无状态的。
 service PerceptionService {
-  // One bidirectional stream per camera. The first client message must be
-  // a SessionConfig; every later message is a FrameRequest. The client sends
-  // at most one frame in flight and waits for its FrameResult.
+  // 每个相机使用一条双向流。客户端必须先发 SessionConfig，
+  // 随后发送 FrameRequest。每发一帧，
+  // 要等收到对应的 FrameResult 再发下一帧。
   rpc Perceive(stream PerceiveRequest) returns (stream PerceiveResponse);
 
-  // LSTM trajectory classification (old track_comsumer.py + DoubleLSTM.py).
+  // 用 LSTM 对轨迹分类，沿用旧版 track_comsumer.py 和 DoubleLSTM.py。
   rpc ClassifyTrajectory(ClassifyTrajectoryRequest) returns (ClassifyTrajectoryResponse);
 
-  // yolo11m-seg person cut-out (old utils/track_utils.py save_segs).
+  // 用 yolo11m-seg 裁出人物，沿用旧版 utils/track_utils.py 的 save_segs。
   rpc SegmentBodies(SegmentBodiesRequest) returns (SegmentBodiesResponse);
 }
 
@@ -38,87 +38,87 @@ message PerceiveResponse {
   }
 }
 
-// Defaults equal the old RGBsort.py argparse defaults. Zero values mean
-// "use the server default"; the server echoes the effective values back in
-// SessionReady so the client can log them.
+// 默认值沿用旧版 RGBsort.py 的 argparse 参数。传零值时使用服务端默认值。
+// 服务端通过 SessionReady 回传实际生效的值，
+// 客户端可将其写入日志。
 message SessionConfig {
   string stream_id = 1;
   int32 max_side = 2;                 // 960
   int32 depth_input_size = 3;         // 384
   float det_conf = 4;                 // 0.05
   float det_iou = 5;                  // 0.80
-  // ROI in original-resolution pixels, x1,y1,x2,y2. Empty = no ROI.
+  // ROI 的 x1、y1、x2、y2 使用原图像素坐标。留空表示不设 ROI。
   BBox roi = 6;                       // 800,1000,1200,1100
   float roi_percentile = 7;           // 50
   float default_depth_threshold = 8;  // 2.5
-  float gate_offset = 9;              // 0.4 (hard-coded in old code)
-  DepthFilterMode depth_filter_mode = 10; // GE
+  float gate_offset = 9;              // 0.4，旧版写死的值。
+  DepthFilterMode depth_filter_mode = 10; // 默认 GE。
   float nms_iou_close = 11;           // 0.3
   float nms_iou_far = 12;             // 0.6
   float nms_depth_delta = 13;         // 0.7
   string gmc_method = 14;             // "sparseOptFlow"
-  bool with_reid = 15;                // true; features from the detector weights
-  // BOTSORT passes only detections with score >= track_high_thresh to
-  // gmc.apply() as foreground boxes. The server needs the same threshold
-  // to reproduce the warp. Must equal the Go tracker's track_high_thresh.
+  bool with_reid = 15;                // 默认 true，使用检测模型权重提取的特征。
+  // BOTSORT 只把分数大于等于 track_high_thresh 的检测框作为前景传给
+  // gmc.apply()。服务端使用相同阈值才能复现变换。
+  // 该值必须与 Go 跟踪器的 track_high_thresh 一致。
   float gmc_det_score_thresh = 16;    // 0.1
 }
 
 enum DepthFilterMode {
   DEPTH_FILTER_MODE_UNSPECIFIED = 0;
-  DEPTH_FILTER_MODE_GE = 1;   // keep depth >= gate (or NaN)
-  DEPTH_FILTER_MODE_LE = 2;   // keep depth <= gate (or NaN)
+  DEPTH_FILTER_MODE_GE = 1;   // 保留深度大于等于阈值或为 NaN 的检测。
+  DEPTH_FILTER_MODE_LE = 2;   // 保留深度小于等于阈值或为 NaN 的检测。
   DEPTH_FILTER_MODE_OFF = 3;
 }
 
 message SessionReady {
   SessionConfig effective_config = 1;
-  string detector_model = 2;   // e.g. "yolo26m-seg.pt"
-  string depth_model = 3;      // e.g. "video_depth_anything_vits.pth"
+  string detector_model = 2;   // 例如 "yolo26m-seg.pt"。
+  string depth_model = 3;      // 例如 "video_depth_anything_vits.pth"。
   int32 reid_dim = 4;
 }
 
 message FrameRequest {
-  uint64 frame_seq = 1;                        // monotonically increasing per stream
-  google.protobuf.Timestamp frame_time = 2;    // echoed back, not used by the server
-  Image image = 3;                             // full-resolution BGR24, already rotated
+  uint64 frame_seq = 1;                        // 在同一条流内严格递增。
+  google.protobuf.Timestamp frame_time = 2;    // 服务端原样回传，推理时不使用。
+  Image image = 3;                             // 已旋转的原始分辨率 BGR24 图像。
 }
 
 message FrameResult {
   uint64 frame_seq = 1;
   google.protobuf.Timestamp frame_time = 2;
-  // Size of the image the detector, depth model and GMC saw (after max_side
-  // resize). Detection boxes and the GMC matrix are in this coordinate system.
+  // 检测器、深度模型和 GMC 使用按 max_side 缩放后的尺寸。
+  // 检测框和 GMC 矩阵都使用这个坐标系。
   int32 infer_width = 3;
   int32 infer_height = 4;
-  // Detections after depth gating and depth-aware NMS, in the order the old
-  // code passed them to tracker.update().
+  // 经过深度阈值过滤和考虑深度的 NMS 后保留的检测，
+  // 顺序与旧版传给 tracker.update() 的检测一致。
   repeated Detection detections = 5;
-  // 2x3 affine warp from the previous frame, row-major (6 values).
-  // Identity when GMC failed, matching the old try/except fallback.
+  // 从上一帧到当前帧的 2×3 仿射变换矩阵，按行排列，共 6 个值。
+  // GMC 失败时返回单位变换，与旧版的 try/except 回退逻辑一致。
   repeated double gmc_warp = 6;
-  float depth_gate = 7;          // ROI-derived gate actually used this frame
-  bool roi_depth_valid = 8;      // false = gate fell back to default/last value
+  float depth_gate = 7;          // 本帧实际使用的深度阈值，优先从 ROI 计算。
+  bool roi_depth_valid = 8;      // false 表示退回默认阈值或上一次的阈值。
   Timings timings = 9;
 }
 
 message Detection {
-  BBox box = 1;          // inference coordinates
+  BBox box = 1;          // 推理图像坐标。
   float score = 2;
-  // IQR-filtered median depth of the mask (or box when no mask). NaN when
-  // no finite depth was available; the tracker-side EMA skips NaN.
+  // 掩码内用四分位距过滤后的深度中位数。没有掩码时使用检测框。
+  // 没有有限深度时为 NaN，跟踪器做指数移动平均时会跳过它。
   float depth = 3;
-  // ReID embedding from the detector model, as the old BOTSORT ReID encoder
-  // produced it (not yet L2-normalized; BOTrack.update_features normalizes).
+  // 检测模型输出的 ReID 特征，沿用旧版 BOTSORT 的提取方式。
+  // 这里尚未做 L2 归一化，由 BOTrack.update_features 完成。
   repeated float reid_feature = 4;
 }
 
 message ClassifyTrajectoryRequest {
-  // One row per output frame, same semantics as the old <person_dir>.txt:
-  // top-left x, y, width, height in original resolution, smoothed depth.
+  // 每个输出帧一条记录，字段含义与旧版 <person_dir>.txt 一致。
+  // 左上角 x、y，框的宽和高均使用原图坐标，深度已经平滑。
   repeated TrajectoryPoint points = 1;
-  int32 frame_width = 2;    // old orig_w
-  int32 frame_height = 3;   // old orig_h
+  int32 frame_width = 2;    // 对应旧版 orig_w。
+  int32 frame_height = 3;   // 对应旧版 orig_h。
   float confidence_threshold = 4;  // 0.3
   int32 min_steps = 5;             // 15
 }
@@ -132,27 +132,27 @@ message TrajectoryPoint {
 }
 
 message ClassifyTrajectoryResponse {
-  // "indoor" / "outdoor" / "pass". "pass" also covers too-short and
-  // low-confidence results, as in lstm_predict_varlen.
+  // 类别为 "indoor"、"outdoor" 或 "pass"。
+  // 轨迹太短或置信度过低时也返回 "pass"，与 lstm_predict_varlen 一致。
   string category = 1;
   float confidence = 2;
   map<string, float> probs = 3;
   int32 steps = 4;
-  string model = 5;   // e.g. "lstm.pth"
+  string model = 5;   // 例如 "lstm.pth"。
 }
 
 message SegmentBodiesRequest {
-  repeated Image images = 1;   // body crops
+  repeated Image images = 1;   // 人体裁剪图。
   float conf = 2;              // 0.8
 }
 
 message SegmentBodiesResponse {
-  // Same length and order as the request. A result without image means no
-  // mask was found, the old code skipped writing segs/ for that crop.
+  // 结果的数量和顺序与请求一致。结果没有图像表示未找到掩码，
+  // 旧版遇到这种裁剪图会跳过写入 segs/。
   repeated SegmentResult results = 1;
 }
 
 message SegmentResult {
-  Image image = 1;   // largest person mask kept, everything else black; JPEG
+  Image image = 1;   // 只保留最大的人体掩码，其余区域填黑，编码为 JPEG。
   float mask_area = 2;
 }

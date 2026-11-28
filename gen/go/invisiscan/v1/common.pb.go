@@ -25,7 +25,7 @@ type Image_Encoding int32
 
 const (
 	Image_ENCODING_UNSPECIFIED Image_Encoding = 0
-	// Packed BGR24, row-major, no padding. width and height are required.
+	// 采用紧密排列的 BGR24 格式，按行存储，无填充。必须提供 width 和 height。
 	Image_ENCODING_RAW_BGR24 Image_Encoding = 1
 	Image_ENCODING_JPEG      Image_Encoding = 2
 	Image_ENCODING_PNG       Image_Encoding = 3
@@ -74,7 +74,7 @@ func (Image_Encoding) EnumDescriptor() ([]byte, []int) {
 	return file_invisiscan_v1_common_proto_rawDescGZIP(), []int{0, 0}
 }
 
-// Image carries one picture between Go and the Python services.
+// Image 在 Go 和 Python 服务之间传递一张图像。
 type Image struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Encoding      Image_Encoding         `protobuf:"varint,1,opt,name=encoding,proto3,enum=invisiscan.v1.Image_Encoding" json:"encoding,omitempty"`
@@ -143,8 +143,8 @@ func (x *Image) GetHeight() int32 {
 	return 0
 }
 
-// Axis-aligned box in pixel coordinates, (x1, y1) top-left, (x2, y2)
-// bottom-right. The coordinate system is stated by the field that uses it.
+// 与坐标轴平行的像素框，(x1, y1) 是左上角，(x2, y2) 是右下角。
+// 具体坐标系由使用这个类型的字段说明。
 type BBox struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	X1            float32                `protobuf:"fixed32,1,opt,name=x1,proto3" json:"x1,omitempty"`
@@ -213,7 +213,7 @@ func (x *BBox) GetY2() float32 {
 	return 0
 }
 
-// Server-side timings, for metrics only.
+// 服务端耗时，仅用于指标统计。
 type Timings struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TotalMs       float32                `protobuf:"fixed32,1,opt,name=total_ms,json=totalMs,proto3" json:"total_ms,omitempty"`

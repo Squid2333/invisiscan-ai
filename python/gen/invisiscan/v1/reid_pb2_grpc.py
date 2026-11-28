@@ -6,9 +6,9 @@ from invisiscan.v1 import reid_pb2 as invisiscan_dot_v1_dot_reid__pb2
 
 
 class ReIDServiceStub(object):
-    """Reserved for the PersonViT body ReID program, which is not in the
-    current code copy. Not implemented; the contract exists so outdoor tracks
-    can be queued as pending_reid without later schema or API changes.
+    """为 PersonViT 人体 ReID 程序预留接口，当前代码未包含该程序，
+    也尚未实现 RPC。户外轨迹可以先进入 pending_reid 队列，
+    后续接入时沿用现有数据库结构和 API。
     """
 
     def __init__(self, channel):
@@ -25,9 +25,9 @@ class ReIDServiceStub(object):
 
 
 class ReIDServiceServicer(object):
-    """Reserved for the PersonViT body ReID program, which is not in the
-    current code copy. Not implemented; the contract exists so outdoor tracks
-    can be queued as pending_reid without later schema or API changes.
+    """为 PersonViT 人体 ReID 程序预留接口，当前代码未包含该程序，
+    也尚未实现 RPC。户外轨迹可以先进入 pending_reid 队列，
+    后续接入时沿用现有数据库结构和 API。
     """
 
     def ExtractBodyEmbedding(self, request, context):
@@ -53,9 +53,9 @@ def add_ReIDServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class ReIDService(object):
-    """Reserved for the PersonViT body ReID program, which is not in the
-    current code copy. Not implemented; the contract exists so outdoor tracks
-    can be queued as pending_reid without later schema or API changes.
+    """为 PersonViT 人体 ReID 程序预留接口，当前代码未包含该程序，
+    也尚未实现 RPC。户外轨迹可以先进入 pending_reid 队列，
+    后续接入时沿用现有数据库结构和 API。
     """
 
     @staticmethod

@@ -1,13 +1,13 @@
--- site/cloud/20_publication.sql: cloud database only. Creates pub_cloud,
--- which host A subscribes to. Requires wal_level = logical and
--- max_slot_wal_keep_size set in postgresql.conf (IMPLEMENTATION_PLAN.md 4.3).
+-- 仅在云端执行，创建供 A 订阅的 pub_cloud。
+-- 需要在 postgresql.conf 里设置 wal_level = logical 和 max_slot_wal_keep_size。
+-- 设置说明见 IMPLEMENTATION_PLAN.md 第 4.3 节。
 --
--- Tables written by invisiscan-main. DELETE and TRUNCATE are not published:
--- subjects and face_templates use soft deletes, and host A's events and
--- recognition logs reference cameras, locations and subjects, so a delete
--- there must not reach A.
+-- 这些表由 invisiscan-main 写入。发布范围排除 DELETE 和 TRUNCATE。
+-- subjects 和 face_templates 使用软删除。
+-- A 的事件和识别日志引用 cameras、locations 和 subjects，
+-- 因此云端的物理删除不能复制到 A。
 --
--- Usage: psql -d invisiscan -f 20_publication.sql
+-- 执行命令 psql -d invisiscan -f 20_publication.sql
 
 BEGIN;
 
@@ -15,9 +15,9 @@ CREATE PUBLICATION pub_cloud
     FOR TABLE locations, cameras, attendance_rules, subjects, face_templates
     WITH (publish = 'insert, update');
 
--- Low-privilege account host A's subscription connects as. Set its password
--- separately (\password invisiscan_repl) and allow only host A's tunnel IP
--- in pg_hba.conf. SELECT is needed for the initial table sync.
+-- A 的订阅使用这个低权限账号连接。用 \password invisiscan_repl 单独设置密码，
+-- 在 pg_hba.conf 里仅放行 A 的隧道地址。
+-- 初始同步需要 SELECT 权限。
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'invisiscan_repl') THEN

@@ -1,18 +1,18 @@
--- site/a/20_publication.sql: host A only. Creates pub_a, which the cloud
--- subscribes to. Requires wal_level = logical and max_slot_wal_keep_size set
--- in postgresql.conf (IMPLEMENTATION_PLAN.md 4.3).
+-- 仅在 A 执行，创建供云端订阅的 pub_a。
+-- 需要在 postgresql.conf 里设置 wal_level = logical 和 max_slot_wal_keep_size。
+-- 设置说明见 IMPLEMENTATION_PLAN.md 第 4.3 节。
 --
--- One publication holds every table host A writes. Rows written in the same
--- transaction (for example an auto-enrolled stranger: subjects +
--- face_templates + face_embeddings + recognition_logs + domain_events) then
--- reach the cloud in commit order.
+-- A 写入的表使用同一个发布。同一事务里的记录会按提交顺序到达云端。
+-- 例如自动登记陌生人时，同一事务会写入 subjects、face_templates、
+-- face_embeddings、recognition_logs 和 domain_events。
+-- 这些记录一起复制到云端。
 --
--- DELETE and TRUNCATE are not published: host A keeps short-term data and
--- purges it locally, while the cloud keeps long-term data under its own
--- retention. subjects and face_templates use soft deletes, so no DELETE has
--- to cross either.
+-- 发布范围排除 DELETE 和 TRUNCATE。A 在本地清理短期数据，
+-- 云端按自己的保留策略管理长期数据。
+-- subjects 和 face_templates 使用软删除，
+-- 因此也无需把物理删除复制到云端。
 --
--- Usage: psql -d invisiscan -f 20_publication.sql
+-- 执行命令 psql -d invisiscan -f 20_publication.sql
 
 BEGIN;
 
@@ -22,9 +22,9 @@ CREATE PUBLICATION pub_a
               subjects, face_templates
     WITH (publish = 'insert, update');
 
--- Low-privilege account the cloud subscription connects as. Set its password
--- separately (\password invisiscan_repl) and allow only the cloud tunnel IP
--- in pg_hba.conf. SELECT is needed for the initial table sync.
+-- 云端订阅使用这个低权限账号连接。用 \password invisiscan_repl 单独设置密码，
+-- 在 pg_hba.conf 里仅放行云端隧道地址。
+-- 初始同步需要 SELECT 权限。
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'invisiscan_repl') THEN

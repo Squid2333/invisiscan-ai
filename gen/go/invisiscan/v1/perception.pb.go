@@ -26,8 +26,8 @@ type DepthFilterMode int32
 
 const (
 	DepthFilterMode_DEPTH_FILTER_MODE_UNSPECIFIED DepthFilterMode = 0
-	DepthFilterMode_DEPTH_FILTER_MODE_GE          DepthFilterMode = 1 // keep depth >= gate (or NaN)
-	DepthFilterMode_DEPTH_FILTER_MODE_LE          DepthFilterMode = 2 // keep depth <= gate (or NaN)
+	DepthFilterMode_DEPTH_FILTER_MODE_GE          DepthFilterMode = 1 // 保留深度大于等于阈值或为 NaN 的检测。
+	DepthFilterMode_DEPTH_FILTER_MODE_LE          DepthFilterMode = 2 // 保留深度小于等于阈值或为 NaN 的检测。
 	DepthFilterMode_DEPTH_FILTER_MODE_OFF         DepthFilterMode = 3
 )
 
@@ -238,9 +238,9 @@ func (*PerceiveResponse_Ready) isPerceiveResponse_Payload() {}
 
 func (*PerceiveResponse_Result) isPerceiveResponse_Payload() {}
 
-// Defaults equal the old RGBsort.py argparse defaults. Zero values mean
-// "use the server default"; the server echoes the effective values back in
-// SessionReady so the client can log them.
+// 默认值沿用旧版 RGBsort.py 的 argparse 参数。传零值时使用服务端默认值。
+// 服务端通过 SessionReady 回传实际生效的值，
+// 客户端可将其写入日志。
 type SessionConfig struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	StreamId       string                 `protobuf:"bytes,1,opt,name=stream_id,json=streamId,proto3" json:"stream_id,omitempty"`
@@ -248,20 +248,20 @@ type SessionConfig struct {
 	DepthInputSize int32                  `protobuf:"varint,3,opt,name=depth_input_size,json=depthInputSize,proto3" json:"depth_input_size,omitempty"` // 384
 	DetConf        float32                `protobuf:"fixed32,4,opt,name=det_conf,json=detConf,proto3" json:"det_conf,omitempty"`                       // 0.05
 	DetIou         float32                `protobuf:"fixed32,5,opt,name=det_iou,json=detIou,proto3" json:"det_iou,omitempty"`                          // 0.80
-	// ROI in original-resolution pixels, x1,y1,x2,y2. Empty = no ROI.
+	// ROI 的 x1、y1、x2、y2 使用原图像素坐标。留空表示不设 ROI。
 	Roi                   *BBox           `protobuf:"bytes,6,opt,name=roi,proto3" json:"roi,omitempty"`                                                                                       // 800,1000,1200,1100
 	RoiPercentile         float32         `protobuf:"fixed32,7,opt,name=roi_percentile,json=roiPercentile,proto3" json:"roi_percentile,omitempty"`                                            // 50
 	DefaultDepthThreshold float32         `protobuf:"fixed32,8,opt,name=default_depth_threshold,json=defaultDepthThreshold,proto3" json:"default_depth_threshold,omitempty"`                  // 2.5
-	GateOffset            float32         `protobuf:"fixed32,9,opt,name=gate_offset,json=gateOffset,proto3" json:"gate_offset,omitempty"`                                                     // 0.4 (hard-coded in old code)
-	DepthFilterMode       DepthFilterMode `protobuf:"varint,10,opt,name=depth_filter_mode,json=depthFilterMode,proto3,enum=invisiscan.v1.DepthFilterMode" json:"depth_filter_mode,omitempty"` // GE
+	GateOffset            float32         `protobuf:"fixed32,9,opt,name=gate_offset,json=gateOffset,proto3" json:"gate_offset,omitempty"`                                                     // 0.4，旧版写死的值。
+	DepthFilterMode       DepthFilterMode `protobuf:"varint,10,opt,name=depth_filter_mode,json=depthFilterMode,proto3,enum=invisiscan.v1.DepthFilterMode" json:"depth_filter_mode,omitempty"` // 默认 GE。
 	NmsIouClose           float32         `protobuf:"fixed32,11,opt,name=nms_iou_close,json=nmsIouClose,proto3" json:"nms_iou_close,omitempty"`                                               // 0.3
 	NmsIouFar             float32         `protobuf:"fixed32,12,opt,name=nms_iou_far,json=nmsIouFar,proto3" json:"nms_iou_far,omitempty"`                                                     // 0.6
 	NmsDepthDelta         float32         `protobuf:"fixed32,13,opt,name=nms_depth_delta,json=nmsDepthDelta,proto3" json:"nms_depth_delta,omitempty"`                                         // 0.7
 	GmcMethod             string          `protobuf:"bytes,14,opt,name=gmc_method,json=gmcMethod,proto3" json:"gmc_method,omitempty"`                                                         // "sparseOptFlow"
-	WithReid              bool            `protobuf:"varint,15,opt,name=with_reid,json=withReid,proto3" json:"with_reid,omitempty"`                                                           // true; features from the detector weights
-	// BOTSORT passes only detections with score >= track_high_thresh to
-	// gmc.apply() as foreground boxes. The server needs the same threshold
-	// to reproduce the warp. Must equal the Go tracker's track_high_thresh.
+	WithReid              bool            `protobuf:"varint,15,opt,name=with_reid,json=withReid,proto3" json:"with_reid,omitempty"`                                                           // 默认 true，使用检测模型权重提取的特征。
+	// BOTSORT 只把分数大于等于 track_high_thresh 的检测框作为前景传给
+	// gmc.apply()。服务端使用相同阈值才能复现变换。
+	// 该值必须与 Go 跟踪器的 track_high_thresh 一致。
 	GmcDetScoreThresh float32 `protobuf:"fixed32,16,opt,name=gmc_det_score_thresh,json=gmcDetScoreThresh,proto3" json:"gmc_det_score_thresh,omitempty"` // 0.1
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
@@ -412,8 +412,8 @@ func (x *SessionConfig) GetGmcDetScoreThresh() float32 {
 type SessionReady struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	EffectiveConfig *SessionConfig         `protobuf:"bytes,1,opt,name=effective_config,json=effectiveConfig,proto3" json:"effective_config,omitempty"`
-	DetectorModel   string                 `protobuf:"bytes,2,opt,name=detector_model,json=detectorModel,proto3" json:"detector_model,omitempty"` // e.g. "yolo26m-seg.pt"
-	DepthModel      string                 `protobuf:"bytes,3,opt,name=depth_model,json=depthModel,proto3" json:"depth_model,omitempty"`          // e.g. "video_depth_anything_vits.pth"
+	DetectorModel   string                 `protobuf:"bytes,2,opt,name=detector_model,json=detectorModel,proto3" json:"detector_model,omitempty"` // 例如 "yolo26m-seg.pt"。
+	DepthModel      string                 `protobuf:"bytes,3,opt,name=depth_model,json=depthModel,proto3" json:"depth_model,omitempty"`          // 例如 "video_depth_anything_vits.pth"。
 	ReidDim         int32                  `protobuf:"varint,4,opt,name=reid_dim,json=reidDim,proto3" json:"reid_dim,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
@@ -479,9 +479,9 @@ func (x *SessionReady) GetReidDim() int32 {
 
 type FrameRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	FrameSeq      uint64                 `protobuf:"varint,1,opt,name=frame_seq,json=frameSeq,proto3" json:"frame_seq,omitempty"`   // monotonically increasing per stream
-	FrameTime     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=frame_time,json=frameTime,proto3" json:"frame_time,omitempty"` // echoed back, not used by the server
-	Image         *Image                 `protobuf:"bytes,3,opt,name=image,proto3" json:"image,omitempty"`                          // full-resolution BGR24, already rotated
+	FrameSeq      uint64                 `protobuf:"varint,1,opt,name=frame_seq,json=frameSeq,proto3" json:"frame_seq,omitempty"`   // 在同一条流内严格递增。
+	FrameTime     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=frame_time,json=frameTime,proto3" json:"frame_time,omitempty"` // 服务端原样回传，推理时不使用。
+	Image         *Image                 `protobuf:"bytes,3,opt,name=image,proto3" json:"image,omitempty"`                          // 已旋转的原始分辨率 BGR24 图像。
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -541,18 +541,18 @@ type FrameResult struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	FrameSeq  uint64                 `protobuf:"varint,1,opt,name=frame_seq,json=frameSeq,proto3" json:"frame_seq,omitempty"`
 	FrameTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=frame_time,json=frameTime,proto3" json:"frame_time,omitempty"`
-	// Size of the image the detector, depth model and GMC saw (after max_side
-	// resize). Detection boxes and the GMC matrix are in this coordinate system.
+	// 检测器、深度模型和 GMC 使用按 max_side 缩放后的尺寸。
+	// 检测框和 GMC 矩阵都使用这个坐标系。
 	InferWidth  int32 `protobuf:"varint,3,opt,name=infer_width,json=inferWidth,proto3" json:"infer_width,omitempty"`
 	InferHeight int32 `protobuf:"varint,4,opt,name=infer_height,json=inferHeight,proto3" json:"infer_height,omitempty"`
-	// Detections after depth gating and depth-aware NMS, in the order the old
-	// code passed them to tracker.update().
+	// 经过深度阈值过滤和考虑深度的 NMS 后保留的检测，
+	// 顺序与旧版传给 tracker.update() 的检测一致。
 	Detections []*Detection `protobuf:"bytes,5,rep,name=detections,proto3" json:"detections,omitempty"`
-	// 2x3 affine warp from the previous frame, row-major (6 values).
-	// Identity when GMC failed, matching the old try/except fallback.
+	// 从上一帧到当前帧的 2×3 仿射变换矩阵，按行排列，共 6 个值。
+	// GMC 失败时返回单位变换，与旧版的 try/except 回退逻辑一致。
 	GmcWarp       []float64 `protobuf:"fixed64,6,rep,packed,name=gmc_warp,json=gmcWarp,proto3" json:"gmc_warp,omitempty"`
-	DepthGate     float32   `protobuf:"fixed32,7,opt,name=depth_gate,json=depthGate,proto3" json:"depth_gate,omitempty"`              // ROI-derived gate actually used this frame
-	RoiDepthValid bool      `protobuf:"varint,8,opt,name=roi_depth_valid,json=roiDepthValid,proto3" json:"roi_depth_valid,omitempty"` // false = gate fell back to default/last value
+	DepthGate     float32   `protobuf:"fixed32,7,opt,name=depth_gate,json=depthGate,proto3" json:"depth_gate,omitempty"`              // 本帧实际使用的深度阈值，优先从 ROI 计算。
+	RoiDepthValid bool      `protobuf:"varint,8,opt,name=roi_depth_valid,json=roiDepthValid,proto3" json:"roi_depth_valid,omitempty"` // false 表示退回默认阈值或上一次的阈值。
 	Timings       *Timings  `protobuf:"bytes,9,opt,name=timings,proto3" json:"timings,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -653,13 +653,13 @@ func (x *FrameResult) GetTimings() *Timings {
 
 type Detection struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Box   *BBox                  `protobuf:"bytes,1,opt,name=box,proto3" json:"box,omitempty"` // inference coordinates
+	Box   *BBox                  `protobuf:"bytes,1,opt,name=box,proto3" json:"box,omitempty"` // 推理图像坐标。
 	Score float32                `protobuf:"fixed32,2,opt,name=score,proto3" json:"score,omitempty"`
-	// IQR-filtered median depth of the mask (or box when no mask). NaN when
-	// no finite depth was available; the tracker-side EMA skips NaN.
+	// 掩码内用四分位距过滤后的深度中位数。没有掩码时使用检测框。
+	// 没有有限深度时为 NaN，跟踪器做指数移动平均时会跳过它。
 	Depth float32 `protobuf:"fixed32,3,opt,name=depth,proto3" json:"depth,omitempty"`
-	// ReID embedding from the detector model, as the old BOTSORT ReID encoder
-	// produced it (not yet L2-normalized; BOTrack.update_features normalizes).
+	// 检测模型输出的 ReID 特征，沿用旧版 BOTSORT 的提取方式。
+	// 这里尚未做 L2 归一化，由 BOTrack.update_features 完成。
 	ReidFeature   []float32 `protobuf:"fixed32,4,rep,packed,name=reid_feature,json=reidFeature,proto3" json:"reid_feature,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -725,11 +725,11 @@ func (x *Detection) GetReidFeature() []float32 {
 
 type ClassifyTrajectoryRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// One row per output frame, same semantics as the old <person_dir>.txt:
-	// top-left x, y, width, height in original resolution, smoothed depth.
+	// 每个输出帧一条记录，字段含义与旧版 <person_dir>.txt 一致。
+	// 左上角 x、y，框的宽和高均使用原图坐标，深度已经平滑。
 	Points              []*TrajectoryPoint `protobuf:"bytes,1,rep,name=points,proto3" json:"points,omitempty"`
-	FrameWidth          int32              `protobuf:"varint,2,opt,name=frame_width,json=frameWidth,proto3" json:"frame_width,omitempty"`                             // old orig_w
-	FrameHeight         int32              `protobuf:"varint,3,opt,name=frame_height,json=frameHeight,proto3" json:"frame_height,omitempty"`                          // old orig_h
+	FrameWidth          int32              `protobuf:"varint,2,opt,name=frame_width,json=frameWidth,proto3" json:"frame_width,omitempty"`                             // 对应旧版 orig_w。
+	FrameHeight         int32              `protobuf:"varint,3,opt,name=frame_height,json=frameHeight,proto3" json:"frame_height,omitempty"`                          // 对应旧版 orig_h。
 	ConfidenceThreshold float32            `protobuf:"fixed32,4,opt,name=confidence_threshold,json=confidenceThreshold,proto3" json:"confidence_threshold,omitempty"` // 0.3
 	MinSteps            int32              `protobuf:"varint,5,opt,name=min_steps,json=minSteps,proto3" json:"min_steps,omitempty"`                                   // 15
 	unknownFields       protoimpl.UnknownFields
@@ -879,13 +879,13 @@ func (x *TrajectoryPoint) GetDepth() float32 {
 
 type ClassifyTrajectoryResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// "indoor" / "outdoor" / "pass". "pass" also covers too-short and
-	// low-confidence results, as in lstm_predict_varlen.
+	// 类别为 "indoor"、"outdoor" 或 "pass"。
+	// 轨迹太短或置信度过低时也返回 "pass"，与 lstm_predict_varlen 一致。
 	Category      string             `protobuf:"bytes,1,opt,name=category,proto3" json:"category,omitempty"`
 	Confidence    float32            `protobuf:"fixed32,2,opt,name=confidence,proto3" json:"confidence,omitempty"`
 	Probs         map[string]float32 `protobuf:"bytes,3,rep,name=probs,proto3" json:"probs,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"fixed32,2,opt,name=value"`
 	Steps         int32              `protobuf:"varint,4,opt,name=steps,proto3" json:"steps,omitempty"`
-	Model         string             `protobuf:"bytes,5,opt,name=model,proto3" json:"model,omitempty"` // e.g. "lstm.pth"
+	Model         string             `protobuf:"bytes,5,opt,name=model,proto3" json:"model,omitempty"` // 例如 "lstm.pth"。
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -957,7 +957,7 @@ func (x *ClassifyTrajectoryResponse) GetModel() string {
 
 type SegmentBodiesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Images        []*Image               `protobuf:"bytes,1,rep,name=images,proto3" json:"images,omitempty"` // body crops
+	Images        []*Image               `protobuf:"bytes,1,rep,name=images,proto3" json:"images,omitempty"` // 人体裁剪图。
 	Conf          float32                `protobuf:"fixed32,2,opt,name=conf,proto3" json:"conf,omitempty"`   // 0.8
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1009,8 +1009,8 @@ func (x *SegmentBodiesRequest) GetConf() float32 {
 
 type SegmentBodiesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Same length and order as the request. A result without image means no
-	// mask was found, the old code skipped writing segs/ for that crop.
+	// 结果的数量和顺序与请求一致。结果没有图像表示未找到掩码，
+	// 旧版遇到这种裁剪图会跳过写入 segs/。
 	Results       []*SegmentResult `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1055,7 +1055,7 @@ func (x *SegmentBodiesResponse) GetResults() []*SegmentResult {
 
 type SegmentResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Image         *Image                 `protobuf:"bytes,1,opt,name=image,proto3" json:"image,omitempty"` // largest person mask kept, everything else black; JPEG
+	Image         *Image                 `protobuf:"bytes,1,opt,name=image,proto3" json:"image,omitempty"` // 只保留最大的人体掩码，其余区域填黑，编码为 JPEG。
 	MaskArea      float32                `protobuf:"fixed32,2,opt,name=mask_area,json=maskArea,proto3" json:"mask_area,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

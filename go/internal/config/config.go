@@ -44,8 +44,8 @@ func Load(path string) (Config, error) {
 		return Config{}, fmt.Errorf("load environment: %w", err)
 	}
 
-	// Frame counts come from legacy/RGBDSort/sort.py and alpha from
-	// update_track_depth_cache in legacy/RGBDSort/RGBsort.py.
+	// 帧数取自 legacy/RGBDSort/sort.py。深度平滑系数取自
+	// legacy/RGBDSort/RGBsort.py 的 update_track_depth_cache。
 	cfg := Config{MockCameraID: 1, MockReplayID: "default", MinTrackFrames: 3, MaxAbsentFrames: 20, DepthEMAAlpha: 0.8}
 	if err := k.Unmarshal("", &cfg); err != nil {
 		return Config{}, fmt.Errorf("decode config: %w", err)

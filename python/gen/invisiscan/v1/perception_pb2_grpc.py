@@ -6,10 +6,10 @@ from invisiscan.v1 import perception_pb2 as invisiscan_dot_v1_dot_perception__pb
 
 
 class PerceptionServiceStub(object):
-    """PerceptionService runs in the RGBDSort environment (torch 2.1.1,
-    ultralytics 8.3.229). Perceive is stateful per stream: it owns the
-    VideoDepthAnything temporal window and the GMC previous frame. The other
-    RPCs are stateless.
+    """PerceptionService 运行在 RGBDSort 环境中，使用 torch 2.1.1
+    和 ultralytics 8.3.229。Perceive 为每条流分别维护
+    VideoDepthAnything 的时间窗口和 GMC 的上一帧。
+    其他 RPC 都是无状态的。
     """
 
     def __init__(self, channel):
@@ -36,30 +36,30 @@ class PerceptionServiceStub(object):
 
 
 class PerceptionServiceServicer(object):
-    """PerceptionService runs in the RGBDSort environment (torch 2.1.1,
-    ultralytics 8.3.229). Perceive is stateful per stream: it owns the
-    VideoDepthAnything temporal window and the GMC previous frame. The other
-    RPCs are stateless.
+    """PerceptionService 运行在 RGBDSort 环境中，使用 torch 2.1.1
+    和 ultralytics 8.3.229。Perceive 为每条流分别维护
+    VideoDepthAnything 的时间窗口和 GMC 的上一帧。
+    其他 RPC 都是无状态的。
     """
 
     def Perceive(self, request_iterator, context):
-        """One bidirectional stream per camera. The first client message must be
-        a SessionConfig; every later message is a FrameRequest. The client sends
-        at most one frame in flight and waits for its FrameResult.
+        """每个相机使用一条双向流。客户端必须先发 SessionConfig，
+        随后发送 FrameRequest。每发一帧，
+        要等收到对应的 FrameResult 再发下一帧。
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def ClassifyTrajectory(self, request, context):
-        """LSTM trajectory classification (old track_comsumer.py + DoubleLSTM.py).
+        """用 LSTM 对轨迹分类，沿用旧版 track_comsumer.py 和 DoubleLSTM.py。
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def SegmentBodies(self, request, context):
-        """yolo11m-seg person cut-out (old utils/track_utils.py save_segs).
+        """用 yolo11m-seg 裁出人物，沿用旧版 utils/track_utils.py 的 save_segs。
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -92,10 +92,10 @@ def add_PerceptionServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class PerceptionService(object):
-    """PerceptionService runs in the RGBDSort environment (torch 2.1.1,
-    ultralytics 8.3.229). Perceive is stateful per stream: it owns the
-    VideoDepthAnything temporal window and the GMC previous frame. The other
-    RPCs are stateless.
+    """PerceptionService 运行在 RGBDSort 环境中，使用 torch 2.1.1
+    和 ultralytics 8.3.229。Perceive 为每条流分别维护
+    VideoDepthAnything 的时间窗口和 GMC 的上一帧。
+    其他 RPC 都是无状态的。
     """
 
     @staticmethod

@@ -6,19 +6,19 @@ import "invisiscan/v1/common.proto";
 
 option go_package = "github.com/Squid2333/invisiscan-ai/gen/go/invisiscan/v1;invisiscanv1";
 
-// FaceService runs in the AdaFace environment. All RPCs are stateless.
+// FaceService 运行在 AdaFace 环境中，所有 RPC 都是无状态的。
 service FaceService {
-  // MTCNN alignment to 112x112 (old face_alignment/align.get_aligned_face,
-  // align_multi(limit=1)). Used on segmentation cut-outs during recognition
-  // and on legacy picture BLOBs during migration.
+  // 用 MTCNN 将人脸对齐至 112×112。沿用旧版 face_alignment/align.get_aligned_face
+  // 中的 align_multi(limit=1)。识别时处理分割后的裁剪图，
+  // 迁移时处理旧库中以 BLOB 保存的图片。
   rpc AlignFaces(AlignFacesRequest) returns (AlignFacesResponse);
 
-  // AdaFace ir_50 embeddings. Input must already be aligned 112x112 faces.
+  // 生成 AdaFace ir_50 特征向量。输入必须是已对齐的 112×112 人脸图。
   rpc EmbedFaces(EmbedFacesRequest) returns (EmbedFacesResponse);
 
-  // Landmark re-alignment + DSL-FIQA quality (old process_folder:
-  // landmark() then dsl_fiqa()). Returns the re-aligned image with its
-  // score so the caller can embed the best one, as old re_compute_user did.
+  // 根据关键点重新对齐人脸，并用 DSL-FIQA 打分。旧版 process_folder
+  // 先调用 landmark()，再调用 dsl_fiqa()。返回重新对齐的图和分数，
+  // 调用方可以像旧版 re_compute_user 一样，选质量最高的一张提取特征。
   rpc AssessQuality(AssessQualityRequest) returns (AssessQualityResponse);
 }
 
@@ -27,14 +27,14 @@ message AlignFacesRequest {
 }
 
 message AlignFacesResponse {
-  // Same length and order as the request; `found` is false when MTCNN
-  // detected no face.
+  // 结果的数量和顺序与请求一致。MTCNN 未检测到人脸时，
+  // found 为 false。
   repeated AlignedFace faces = 1;
 }
 
 message AlignedFace {
   bool found = 1;
-  Image image = 2;   // 112x112 RGB, JPEG
+  Image image = 2;   // 112×112 的 RGB 图像，编码为 JPEG。
 }
 
 message EmbedFacesRequest {
@@ -42,17 +42,17 @@ message EmbedFacesRequest {
 }
 
 message EmbedFacesResponse {
-  // Same length and order as the request. Embeddings are the first output
-  // of the AdaFace forward pass, already L2-normalized (unit length).
-  // ok = false when the image could not be decoded; the old code skipped it.
+  // 结果的数量和顺序与请求一致。特征向量取 AdaFace 前向推理的第一项输出，
+  // 已做 L2 归一化，长度为 1。
+  // 图像解码失败时 ok 为 false。旧版会跳过这张图。
   repeated FaceEmbedding embeddings = 1;
-  string model = 2;   // e.g. "adaface_ir50_ms1mv2"
+  string model = 2;   // 例如 "adaface_ir50_ms1mv2"。
 }
 
 message FaceEmbedding {
   bool ok = 1;
-  repeated float vector = 2;   // 512 floats
-  float norm = 3;              // pre-normalization norm returned by AdaFace
+  repeated float vector = 2;   // 512 个浮点数。
+  float norm = 3;              // AdaFace 返回的归一化前范数。
 }
 
 message AssessQualityRequest {
@@ -60,13 +60,13 @@ message AssessQualityRequest {
 }
 
 message AssessQualityResponse {
-  // Only faces that survived landmark re-alignment, sorted by quality
-  // descending (old sort_images). May be empty.
+  // 仅返回通过关键点重新对齐的人脸，按质量从高到低排序，与旧版 sort_images 一致。
+  // 结果可以为空。
   repeated QualityResult results = 1;
 }
 
 message QualityResult {
-  int32 input_index = 1;   // index into AssessQualityRequest.faces
-  float quality = 2;       // DSL-FIQA score; old enrol threshold is 0.15
-  Image realigned = 3;     // the image old code wrote under dsl/
+  int32 input_index = 1;   // 在 AssessQualityRequest.faces 中的索引。
+  float quality = 2;       // DSL-FIQA 分数，旧版登记阈值为 0.15。
+  Image realigned = 3;     // 旧版写入 dsl/ 目录的图像。
 }

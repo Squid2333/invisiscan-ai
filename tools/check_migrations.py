@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Static checks for the forward-only migration layout.
+"""对只能向前演进的迁移文件做静态检查。
 
-This check deliberately does not parse SQL. PostgreSQL remains the authority
-for SQL syntax and constraint validation; this script catches migration files
-that would make the documented application order ambiguous.
+SQL 语法和约束由 PostgreSQL 验证。这个脚本检查文件的命名和顺序，
+避免迁移执行次序含糊。
 """
 
 from __future__ import annotations

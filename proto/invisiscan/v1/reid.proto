@@ -6,19 +6,19 @@ import "invisiscan/v1/common.proto";
 
 option go_package = "github.com/Squid2333/invisiscan-ai/gen/go/invisiscan/v1;invisiscanv1";
 
-// Reserved for the PersonViT body ReID program, which is not in the
-// current code copy. Not implemented; the contract exists so outdoor tracks
-// can be queued as pending_reid without later schema or API changes.
+// 为 PersonViT 人体 ReID 程序预留接口，当前代码未包含该程序，
+// 也尚未实现 RPC。户外轨迹可以先进入 pending_reid 队列，
+// 后续接入时沿用现有数据库结构和 API。
 service ReIDService {
   rpc ExtractBodyEmbedding(ExtractBodyEmbeddingRequest) returns (ExtractBodyEmbeddingResponse);
 }
 
 message ExtractBodyEmbeddingRequest {
-  repeated Image bodies = 1;   // segmentation cut-outs from tracks/{uuid}/seg/
+  repeated Image bodies = 1;   // 来自 tracks/{uuid}/seg/ 的人体分割裁剪图。
 }
 
 message ExtractBodyEmbeddingResponse {
-  repeated BodyEmbedding embeddings = 1;   // same length and order as request
+  repeated BodyEmbedding embeddings = 1;   // 结果的数量和顺序与请求一致。
   string model = 2;
   int32 dim = 3;
 }

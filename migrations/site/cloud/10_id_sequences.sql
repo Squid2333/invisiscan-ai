@@ -1,8 +1,8 @@
--- site/cloud/10_id_sequences.sql: cloud database only. Run once, right after
--- 0001_init.sql and before any row is inserted into subjects or face_templates.
+-- 仅在云端执行一次。先执行 0001_init.sql，
+-- 再运行本文件，然后才能向 subjects 或 face_templates 插入数据。
 --
--- The cloud uses even ids; host A uses odd ids (site/a/10_id_sequences.sql).
--- See that file for the reason.
+-- 云端使用偶数 ID，A 使用奇数 ID。
+-- 原因见 site/a/10_id_sequences.sql。
 
 BEGIN;
 

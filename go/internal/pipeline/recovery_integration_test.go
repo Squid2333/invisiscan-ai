@@ -40,8 +40,8 @@ func TestPostgresCrashRecovery(t *testing.T) {
 		t.Fatalf("build pipeline: %v\n%s", err, output)
 	}
 
-	// One camera belongs to a live pipeline, the other has open work but no
-	// owner. Recovery of a third camera must leave both untouched.
+	// 一台相机由正在运行的实例持锁，另一台仍有未结束的事件但无人持锁。
+	// 恢复第三台相机时，两台相机的记录都应保持原状。
 	heldID := recoveryCamera(t, ctx, pool, "held")
 	held, err := store.AcquireCamera(ctx, pool, heldID)
 	if err != nil {
@@ -84,7 +84,7 @@ func TestPostgresCrashRecovery(t *testing.T) {
 			workerDSN := *dsn
 			query := workerDSN.Query()
 			query.Set("application_name", "invisiscan-recovery-worker")
-			// Detect the disconnection while the backend is blocked on the trigger.
+			// 数据库进程阻塞在触发器里时也要能察觉客户端断开。
 			query.Set("client_connection_check_interval", "100ms")
 			workerDSN.RawQuery = query.Encode()
 			start := func() *exec.Cmd {
@@ -192,7 +192,7 @@ func startRecoveryServices(t *testing.T, ctx context.Context, root string) (*url
 		}
 	}
 
-	// Stage only the checked-in Python sources and generated stubs used by the Dockerfile.
+	// 构建目录只放 Dockerfile 用到的 Python 源码和已检入的生成文件。
 	buildDir := t.TempDir()
 	for _, pattern := range []string{"python/perception/*", "python/gen/invisiscan/v1/*.py"} {
 		paths, err := fs.Glob(os.DirFS(root), pattern)
@@ -302,8 +302,8 @@ func crashPipeline(t *testing.T, ctx context.Context, dsn string, pool *pgxpool.
 	if _, err := gate.Exec(ctx, "SELECT pg_advisory_lock($1)", gateKey); err != nil {
 		t.Fatal(err)
 	}
-	// The backend pauses inside the real statement, after earlier writes in the
-	// same transaction. This connection keeps it blocked until the child is dead.
+	// 等事务完成前面的写入后，在实际执行的 SQL 语句里暂停数据库进程。
+	// 这条连接持有测试锁，让数据库一直等到子进程被终止。
 	if _, err := pool.Exec(ctx, fmt.Sprintf(`CREATE FUNCTION pause_recovery_test() RETURNS trigger LANGUAGE plpgsql AS $$
 		BEGIN PERFORM pg_advisory_xact_lock(%d); RETURN NEW; END $$;
 		CREATE TRIGGER pause_recovery_test %s EXECUTE FUNCTION pause_recovery_test();`, gateKey, trigger)); err != nil {

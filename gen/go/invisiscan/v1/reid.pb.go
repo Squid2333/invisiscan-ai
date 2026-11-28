@@ -23,7 +23,7 @@ const (
 
 type ExtractBodyEmbeddingRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Bodies        []*Image               `protobuf:"bytes,1,rep,name=bodies,proto3" json:"bodies,omitempty"` // segmentation cut-outs from tracks/{uuid}/seg/
+	Bodies        []*Image               `protobuf:"bytes,1,rep,name=bodies,proto3" json:"bodies,omitempty"` // 来自 tracks/{uuid}/seg/ 的人体分割裁剪图。
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -67,7 +67,7 @@ func (x *ExtractBodyEmbeddingRequest) GetBodies() []*Image {
 
 type ExtractBodyEmbeddingResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Embeddings    []*BodyEmbedding       `protobuf:"bytes,1,rep,name=embeddings,proto3" json:"embeddings,omitempty"` // same length and order as request
+	Embeddings    []*BodyEmbedding       `protobuf:"bytes,1,rep,name=embeddings,proto3" json:"embeddings,omitempty"` // 结果的数量和顺序与请求一致。
 	Model         string                 `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"`
 	Dim           int32                  `protobuf:"varint,3,opt,name=dim,proto3" json:"dim,omitempty"`
 	unknownFields protoimpl.UnknownFields

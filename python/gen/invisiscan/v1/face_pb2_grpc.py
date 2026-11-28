@@ -6,7 +6,7 @@ from invisiscan.v1 import face_pb2 as invisiscan_dot_v1_dot_face__pb2
 
 
 class FaceServiceStub(object):
-    """FaceService runs in the AdaFace environment. All RPCs are stateless.
+    """FaceService 运行在 AdaFace 环境中，所有 RPC 都是无状态的。
     """
 
     def __init__(self, channel):
@@ -33,29 +33,29 @@ class FaceServiceStub(object):
 
 
 class FaceServiceServicer(object):
-    """FaceService runs in the AdaFace environment. All RPCs are stateless.
+    """FaceService 运行在 AdaFace 环境中，所有 RPC 都是无状态的。
     """
 
     def AlignFaces(self, request, context):
-        """MTCNN alignment to 112x112 (old face_alignment/align.get_aligned_face,
-        align_multi(limit=1)). Used on segmentation cut-outs during recognition
-        and on legacy picture BLOBs during migration.
+        """用 MTCNN 将人脸对齐至 112×112。沿用旧版 face_alignment/align.get_aligned_face
+        中的 align_multi(limit=1)。识别时处理分割后的裁剪图，
+        迁移时处理旧库中以 BLOB 保存的图片。
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def EmbedFaces(self, request, context):
-        """AdaFace ir_50 embeddings. Input must already be aligned 112x112 faces.
+        """生成 AdaFace ir_50 特征向量。输入必须是已对齐的 112×112 人脸图。
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def AssessQuality(self, request, context):
-        """Landmark re-alignment + DSL-FIQA quality (old process_folder:
-        landmark() then dsl_fiqa()). Returns the re-aligned image with its
-        score so the caller can embed the best one, as old re_compute_user did.
+        """根据关键点重新对齐人脸，并用 DSL-FIQA 打分。旧版 process_folder
+        先调用 landmark()，再调用 dsl_fiqa()。返回重新对齐的图和分数，
+        调用方可以像旧版 re_compute_user 一样，选质量最高的一张提取特征。
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -88,7 +88,7 @@ def add_FaceServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class FaceService(object):
-    """FaceService runs in the AdaFace environment. All RPCs are stateless.
+    """FaceService 运行在 AdaFace 环境中，所有 RPC 都是无状态的。
     """
 
     @staticmethod

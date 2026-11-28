@@ -28,18 +28,18 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// PerceptionService runs in the RGBDSort environment (torch 2.1.1,
-// ultralytics 8.3.229). Perceive is stateful per stream: it owns the
-// VideoDepthAnything temporal window and the GMC previous frame. The other
-// RPCs are stateless.
+// PerceptionService 运行在 RGBDSort 环境中，使用 torch 2.1.1
+// 和 ultralytics 8.3.229。Perceive 为每条流分别维护
+// VideoDepthAnything 的时间窗口和 GMC 的上一帧。
+// 其他 RPC 都是无状态的。
 type PerceptionServiceClient interface {
-	// One bidirectional stream per camera. The first client message must be
-	// a SessionConfig; every later message is a FrameRequest. The client sends
-	// at most one frame in flight and waits for its FrameResult.
+	// 每个相机使用一条双向流。客户端必须先发 SessionConfig，
+	// 随后发送 FrameRequest。每发一帧，
+	// 要等收到对应的 FrameResult 再发下一帧。
 	Perceive(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[PerceiveRequest, PerceiveResponse], error)
-	// LSTM trajectory classification (old track_comsumer.py + DoubleLSTM.py).
+	// 用 LSTM 对轨迹分类，沿用旧版 track_comsumer.py 和 DoubleLSTM.py。
 	ClassifyTrajectory(ctx context.Context, in *ClassifyTrajectoryRequest, opts ...grpc.CallOption) (*ClassifyTrajectoryResponse, error)
-	// yolo11m-seg person cut-out (old utils/track_utils.py save_segs).
+	// 用 yolo11m-seg 裁出人物，沿用旧版 utils/track_utils.py 的 save_segs。
 	SegmentBodies(ctx context.Context, in *SegmentBodiesRequest, opts ...grpc.CallOption) (*SegmentBodiesResponse, error)
 }
 
@@ -88,18 +88,18 @@ func (c *perceptionServiceClient) SegmentBodies(ctx context.Context, in *Segment
 // All implementations must embed UnimplementedPerceptionServiceServer
 // for forward compatibility.
 //
-// PerceptionService runs in the RGBDSort environment (torch 2.1.1,
-// ultralytics 8.3.229). Perceive is stateful per stream: it owns the
-// VideoDepthAnything temporal window and the GMC previous frame. The other
-// RPCs are stateless.
+// PerceptionService 运行在 RGBDSort 环境中，使用 torch 2.1.1
+// 和 ultralytics 8.3.229。Perceive 为每条流分别维护
+// VideoDepthAnything 的时间窗口和 GMC 的上一帧。
+// 其他 RPC 都是无状态的。
 type PerceptionServiceServer interface {
-	// One bidirectional stream per camera. The first client message must be
-	// a SessionConfig; every later message is a FrameRequest. The client sends
-	// at most one frame in flight and waits for its FrameResult.
+	// 每个相机使用一条双向流。客户端必须先发 SessionConfig，
+	// 随后发送 FrameRequest。每发一帧，
+	// 要等收到对应的 FrameResult 再发下一帧。
 	Perceive(grpc.BidiStreamingServer[PerceiveRequest, PerceiveResponse]) error
-	// LSTM trajectory classification (old track_comsumer.py + DoubleLSTM.py).
+	// 用 LSTM 对轨迹分类，沿用旧版 track_comsumer.py 和 DoubleLSTM.py。
 	ClassifyTrajectory(context.Context, *ClassifyTrajectoryRequest) (*ClassifyTrajectoryResponse, error)
-	// yolo11m-seg person cut-out (old utils/track_utils.py save_segs).
+	// 用 yolo11m-seg 裁出人物，沿用旧版 utils/track_utils.py 的 save_segs。
 	SegmentBodies(context.Context, *SegmentBodiesRequest) (*SegmentBodiesResponse, error)
 	mustEmbedUnimplementedPerceptionServiceServer()
 }

@@ -28,17 +28,17 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// FaceService runs in the AdaFace environment. All RPCs are stateless.
+// FaceService 运行在 AdaFace 环境中，所有 RPC 都是无状态的。
 type FaceServiceClient interface {
-	// MTCNN alignment to 112x112 (old face_alignment/align.get_aligned_face,
-	// align_multi(limit=1)). Used on segmentation cut-outs during recognition
-	// and on legacy picture BLOBs during migration.
+	// 用 MTCNN 将人脸对齐至 112×112。沿用旧版 face_alignment/align.get_aligned_face
+	// 中的 align_multi(limit=1)。识别时处理分割后的裁剪图，
+	// 迁移时处理旧库中以 BLOB 保存的图片。
 	AlignFaces(ctx context.Context, in *AlignFacesRequest, opts ...grpc.CallOption) (*AlignFacesResponse, error)
-	// AdaFace ir_50 embeddings. Input must already be aligned 112x112 faces.
+	// 生成 AdaFace ir_50 特征向量。输入必须是已对齐的 112×112 人脸图。
 	EmbedFaces(ctx context.Context, in *EmbedFacesRequest, opts ...grpc.CallOption) (*EmbedFacesResponse, error)
-	// Landmark re-alignment + DSL-FIQA quality (old process_folder:
-	// landmark() then dsl_fiqa()). Returns the re-aligned image with its
-	// score so the caller can embed the best one, as old re_compute_user did.
+	// 根据关键点重新对齐人脸，并用 DSL-FIQA 打分。旧版 process_folder
+	// 先调用 landmark()，再调用 dsl_fiqa()。返回重新对齐的图和分数，
+	// 调用方可以像旧版 re_compute_user 一样，选质量最高的一张提取特征。
 	AssessQuality(ctx context.Context, in *AssessQualityRequest, opts ...grpc.CallOption) (*AssessQualityResponse, error)
 }
 
@@ -84,17 +84,17 @@ func (c *faceServiceClient) AssessQuality(ctx context.Context, in *AssessQuality
 // All implementations must embed UnimplementedFaceServiceServer
 // for forward compatibility.
 //
-// FaceService runs in the AdaFace environment. All RPCs are stateless.
+// FaceService 运行在 AdaFace 环境中，所有 RPC 都是无状态的。
 type FaceServiceServer interface {
-	// MTCNN alignment to 112x112 (old face_alignment/align.get_aligned_face,
-	// align_multi(limit=1)). Used on segmentation cut-outs during recognition
-	// and on legacy picture BLOBs during migration.
+	// 用 MTCNN 将人脸对齐至 112×112。沿用旧版 face_alignment/align.get_aligned_face
+	// 中的 align_multi(limit=1)。识别时处理分割后的裁剪图，
+	// 迁移时处理旧库中以 BLOB 保存的图片。
 	AlignFaces(context.Context, *AlignFacesRequest) (*AlignFacesResponse, error)
-	// AdaFace ir_50 embeddings. Input must already be aligned 112x112 faces.
+	// 生成 AdaFace ir_50 特征向量。输入必须是已对齐的 112×112 人脸图。
 	EmbedFaces(context.Context, *EmbedFacesRequest) (*EmbedFacesResponse, error)
-	// Landmark re-alignment + DSL-FIQA quality (old process_folder:
-	// landmark() then dsl_fiqa()). Returns the re-aligned image with its
-	// score so the caller can embed the best one, as old re_compute_user did.
+	// 根据关键点重新对齐人脸，并用 DSL-FIQA 打分。旧版 process_folder
+	// 先调用 landmark()，再调用 dsl_fiqa()。返回重新对齐的图和分数，
+	// 调用方可以像旧版 re_compute_user 一样，选质量最高的一张提取特征。
 	AssessQuality(context.Context, *AssessQualityRequest) (*AssessQualityResponse, error)
 	mustEmbedUnimplementedFaceServiceServer()
 }

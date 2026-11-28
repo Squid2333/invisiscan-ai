@@ -1,10 +1,10 @@
--- site/a/10_id_sequences.sql: host A only. Run once, right after 0001_init.sql
--- and before any row is inserted into subjects or face_templates.
+-- 仅在 A 执行一次。先执行 0001_init.sql，
+-- 再运行本文件，然后才能向 subjects 或 face_templates 插入数据。
 --
--- Both sites insert into subjects and face_templates, and the rows are
--- replicated both ways. The identity sequences are split so ids never
--- collide: host A uses odd ids, the cloud uses even ids
--- (site/cloud/10_id_sequences.sql). External APIs use uuid, not id.
+-- 两站点都会向 subjects 和 face_templates 插入数据，记录会双向复制。
+-- 通过拆分自增序列避免主键冲突。
+-- A 使用奇数 ID，云端使用偶数 ID，见 site/cloud/10_id_sequences.sql。
+-- 外部接口使用 UUID 标识记录。
 
 BEGIN;
 

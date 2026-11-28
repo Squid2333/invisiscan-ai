@@ -67,8 +67,8 @@ func (x *AlignFacesRequest) GetImages() []*Image {
 
 type AlignFacesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Same length and order as the request; `found` is false when MTCNN
-	// detected no face.
+	// 结果的数量和顺序与请求一致。MTCNN 未检测到人脸时，
+	// found 为 false。
 	Faces         []*AlignedFace `protobuf:"bytes,1,rep,name=faces,proto3" json:"faces,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -114,7 +114,7 @@ func (x *AlignFacesResponse) GetFaces() []*AlignedFace {
 type AlignedFace struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Found         bool                   `protobuf:"varint,1,opt,name=found,proto3" json:"found,omitempty"`
-	Image         *Image                 `protobuf:"bytes,2,opt,name=image,proto3" json:"image,omitempty"` // 112x112 RGB, JPEG
+	Image         *Image                 `protobuf:"bytes,2,opt,name=image,proto3" json:"image,omitempty"` // 112×112 的 RGB 图像，编码为 JPEG。
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -209,11 +209,11 @@ func (x *EmbedFacesRequest) GetFaces() []*Image {
 
 type EmbedFacesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Same length and order as the request. Embeddings are the first output
-	// of the AdaFace forward pass, already L2-normalized (unit length).
-	// ok = false when the image could not be decoded; the old code skipped it.
+	// 结果的数量和顺序与请求一致。特征向量取 AdaFace 前向推理的第一项输出，
+	// 已做 L2 归一化，长度为 1。
+	// 图像解码失败时 ok 为 false。旧版会跳过这张图。
 	Embeddings    []*FaceEmbedding `protobuf:"bytes,1,rep,name=embeddings,proto3" json:"embeddings,omitempty"`
-	Model         string           `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"` // e.g. "adaface_ir50_ms1mv2"
+	Model         string           `protobuf:"bytes,2,opt,name=model,proto3" json:"model,omitempty"` // 例如 "adaface_ir50_ms1mv2"。
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -265,8 +265,8 @@ func (x *EmbedFacesResponse) GetModel() string {
 type FaceEmbedding struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
-	Vector        []float32              `protobuf:"fixed32,2,rep,packed,name=vector,proto3" json:"vector,omitempty"` // 512 floats
-	Norm          float32                `protobuf:"fixed32,3,opt,name=norm,proto3" json:"norm,omitempty"`            // pre-normalization norm returned by AdaFace
+	Vector        []float32              `protobuf:"fixed32,2,rep,packed,name=vector,proto3" json:"vector,omitempty"` // 512 个浮点数。
+	Norm          float32                `protobuf:"fixed32,3,opt,name=norm,proto3" json:"norm,omitempty"`            // AdaFace 返回的归一化前范数。
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -368,8 +368,8 @@ func (x *AssessQualityRequest) GetFaces() []*Image {
 
 type AssessQualityResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Only faces that survived landmark re-alignment, sorted by quality
-	// descending (old sort_images). May be empty.
+	// 仅返回通过关键点重新对齐的人脸，按质量从高到低排序，与旧版 sort_images 一致。
+	// 结果可以为空。
 	Results       []*QualityResult `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -414,9 +414,9 @@ func (x *AssessQualityResponse) GetResults() []*QualityResult {
 
 type QualityResult struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	InputIndex    int32                  `protobuf:"varint,1,opt,name=input_index,json=inputIndex,proto3" json:"input_index,omitempty"` // index into AssessQualityRequest.faces
-	Quality       float32                `protobuf:"fixed32,2,opt,name=quality,proto3" json:"quality,omitempty"`                        // DSL-FIQA score; old enrol threshold is 0.15
-	Realigned     *Image                 `protobuf:"bytes,3,opt,name=realigned,proto3" json:"realigned,omitempty"`                      // the image old code wrote under dsl/
+	InputIndex    int32                  `protobuf:"varint,1,opt,name=input_index,json=inputIndex,proto3" json:"input_index,omitempty"` // 在 AssessQualityRequest.faces 中的索引。
+	Quality       float32                `protobuf:"fixed32,2,opt,name=quality,proto3" json:"quality,omitempty"`                        // DSL-FIQA 分数，旧版登记阈值为 0.15。
+	Realigned     *Image                 `protobuf:"bytes,3,opt,name=realigned,proto3" json:"realigned,omitempty"`                      // 旧版写入 dsl/ 目录的图像。
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

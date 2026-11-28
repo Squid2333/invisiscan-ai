@@ -4,19 +4,21 @@
 
 ## 先读什么
 
-| 文档 | 内容 |
-|---|---|
-| `docs/ARCHITECTURE.md` | 拓扑、帧时间、状态机、存储、链路时序、仓库结构 |
-| `docs/DATA_MODEL.md` | 每张表的字段语义、双库与写入方、典型查询 |
-| `docs/IMPLEMENTATION_STAGES.md` | 分阶段实施步骤、验收、难点和待决问题 |
-| `docs/IMPLEMENTATION_PLAN.md` | 技术栈、A 与云端的部署和同步、运维 |
-| `docs/ADMIN_API.md` | invisiscan-main 的接口和跨项目契约。本项目不实现这些接口 |
-| `migrations/` | DDL 是 schema 的唯一来源，sqlc 从这里生成代码 |
-| `proto/invisiscan/v1/` | Go 和 Python 之间唯一的共享物 |
+| 文档                            | 内容                                                     |
+| ------------------------------- | -------------------------------------------------------- |
+| `docs/ARCHITECTURE.md`          | 拓扑、帧时间、状态机、存储、链路时序、仓库结构           |
+| `docs/DATA_MODEL.md`            | 每张表的字段语义、双库与写入方、典型查询                 |
+| `docs/IMPLEMENTATION_STAGES.md` | 分阶段实施步骤、验收、难点和待决问题                     |
+| `docs/IMPLEMENTATION_PLAN.md`   | 技术栈、A 与云端的部署和同步、运维                       |
+| `docs/ADMIN_API.md`             | invisiscan-main 的接口和跨项目契约。本项目不实现这些接口 |
+| `migrations/`                   | DDL 是 schema 的唯一来源，sqlc 从这里生成代码            |
+| `proto/invisiscan/v1/`          | Go 和 Python 之间唯一的共享物                            |
 
 代码和文档不一致时，先确认哪边对，再把另一边改过来，不要让两者长期分叉。
 
 ## 写代码的原则
+
+**注释和代码提交使用中文，要求通俗易懂，不要故作高深，不要自创难懂的名词提高阅读门槛**
 
 **代码简洁，直接表达意图。** 一个函数做一件事，读起来不需要跳很多层。三行重复好过一个只用一次的抽象。只在文档已经定义的地方建接口（`BlobStore`、`TaskQueue`、gRPC 服务），不为"以后可能换实现"预先加接口、配置项或插件点。
 
@@ -56,6 +58,7 @@
 
 ## 仓库约定
 
+- 只有用户明确要求提交时，才可以执行 `git commit`。完成修改和验证后，将改动留在工作区，等待用户决定何时提交。
 - `legacy/` 是旧链路代码，重构期间保持原样、可运行，用来生成回归比对的黄金数据。不要修改，不要删除。
 - 模型权重和 `testdata/` 不进 Git。
 - Go：pgx v5 + sqlc，`log/slog` 输出 JSON 到 stdout，不直接写日志表。

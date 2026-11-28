@@ -35,8 +35,8 @@ func startReplicationSites(t *testing.T, ctx context.Context) (*pgxpool.Pool, *p
 	a := startReplicationSite(t, ctx, migrations, siteNetwork.Name, "a")
 	cloud := startReplicationSite(t, ctx, migrations, siteNetwork.Name, "cloud")
 
-	// Each site's subscriber creates its slot on a separate PostgreSQL server.
-	// Install the cloud subscription first, as in the deployment migrations.
+	// 每个订阅都在另一台 PostgreSQL 实例上创建复制槽。
+	// 沿用部署迁移的顺序，先创建云端订阅。
 	runSubscription(t, ctx, cloud.container, "a_conninfo=host=a dbname=invisiscan user=invisiscan_repl password=integration")
 	runSubscription(t, ctx, a.container, "cloud_conninfo=host=cloud dbname=invisiscan user=invisiscan_repl password=integration")
 	for _, site := range []replicationSite{a, cloud} {

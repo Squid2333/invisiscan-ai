@@ -1,16 +1,16 @@
--- 0003_contract_checks.sql: constraints that make documented field semantics
--- executable. This migration is applied on both host A and the cloud.
--- Keep 0001_init.sql immutable: deployed databases may already have it.
+-- 0003_contract_checks.sql 用数据库约束落实文档里的字段规则。
+-- A 和云端均执行此迁移。
+-- 0001_init.sql 必须保持原样，因为部署中的数据库可能已经执行过它。
 
 BEGIN;
 
--- A selected preview is always a body image. Segmentation and aligned-face
--- rows are never uploaded as previews.
+-- 只有人体图可以被选为预览图。
+-- 分割图和对齐后的人脸图都不作为预览上传。
 ALTER TABLE track_images
     ADD CONSTRAINT track_images_selected_body
     CHECK (NOT selected OR kind = 'body');
 
--- FIQA quality is meaningful only for aligned face images.
+-- FIQA 质量分只适用于已对齐的人脸图。
 ALTER TABLE track_images
     ADD CONSTRAINT track_images_quality_face
     CHECK (quality IS NULL OR kind = 'face');
