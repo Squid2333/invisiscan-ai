@@ -11,6 +11,25 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addConfirmedTrackFrames = `-- name: AddConfirmedTrackFrames :execrows
+UPDATE tracks
+SET frame_count = frame_count + $1::integer, updated_at = now()
+WHERE id = $2 AND status = 'confirmed'
+`
+
+type AddConfirmedTrackFramesParams struct {
+	FrameCount int32 `json:"frame_count"`
+	ID         int64 `json:"id"`
+}
+
+func (q *Queries) AddConfirmedTrackFrames(ctx context.Context, arg AddConfirmedTrackFramesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, addConfirmedTrackFrames, arg.FrameCount, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const createTrack = `-- name: CreateTrack :one
 INSERT INTO tracks (uuid, event_id, camera_id, tracker_id, started_at, clock_source, frame_count)
 VALUES ($1, $2, $3, $4, $5, $6, $7)

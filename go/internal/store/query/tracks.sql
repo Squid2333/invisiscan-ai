@@ -3,6 +3,11 @@ INSERT INTO tracks (uuid, event_id, camera_id, tracker_id, started_at, clock_sou
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id;
 
+-- name: AddConfirmedTrackFrames :execrows
+UPDATE tracks
+SET frame_count = frame_count + sqlc.arg(frame_count)::integer, updated_at = now()
+WHERE id = sqlc.arg(id) AND status = 'confirmed';
+
 -- name: EndTrack :execrows
 UPDATE tracks
 SET status = 'ended', end_reason = $3, ended_at = $4, updated_at = now()

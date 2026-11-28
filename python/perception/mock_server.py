@@ -9,9 +9,38 @@ from google.protobuf.timestamp_pb2 import Timestamp
 from invisiscan.v1 import common_pb2, perception_pb2, perception_pb2_grpc
 
 
+def mock_detections(seq: int, width: int, height: int):
+    # Two early hits form an unconfirmed event. In the next event the left
+    # track starts first but confirms after the right track because of a gap.
+    left_depths = {23: float("nan"), 27: 2.5, 28: 3.5, 29: float("nan"), 30: 4.2}
+    if seq in left_depths:
+        lane, score, depth = 0.10, 0.90, left_depths[seq]
+    elif seq in (1, 2, 24, 25, 26):
+        lane, score, depth = 0.60, 0.90, 3.0
+    elif seq == 50:
+        # The 19 preceding empty frames do not close the event. This box
+        # resets the absence count even though the tracker ignores its score.
+        lane, score, depth = 0.10, 0.08, 3.0
+    else:
+        return []
+
+    return [
+        perception_pb2.Detection(
+            box=common_pb2.BBox(
+                x1=(lane + 0.75 / 960) * width,
+                y1=(0.20 + 0.75 / 720) * height,
+                x2=(lane + 0.20 + 1.25 / 960) * width,
+                y2=(0.60 + 1.25 / 720) * height,
+            ),
+            score=score,
+            depth=depth,
+        )
+    ]
+
+
 class MockPerceptionService(perception_pb2_grpc.PerceptionServiceServicer):
     def Perceive(self, request_iterator, context):
-        configured = False
+        effective = None
         for request in request_iterator:
             payload = request.WhichOneof("payload")
             if payload == "config":
@@ -37,7 +66,6 @@ class MockPerceptionService(perception_pb2_grpc.PerceptionServiceServicer):
                     with_reid=True,
                     gmc_det_score_thresh=0.1,
                 )
-                configured = True
                 yield perception_pb2.PerceiveResponse(
                     ready=perception_pb2.SessionReady(
                         effective_config=effective,
@@ -47,7 +75,7 @@ class MockPerceptionService(perception_pb2_grpc.PerceptionServiceServicer):
                     )
                 )
             elif payload == "frame":
-                if not configured:
+                if effective is None:
                     context.abort(
                         grpc.StatusCode.FAILED_PRECONDITION,
                         "send SessionConfig before frames",
@@ -56,12 +84,17 @@ class MockPerceptionService(perception_pb2_grpc.PerceptionServiceServicer):
                 timestamp = Timestamp()
                 if frame.HasField("frame_time"):
                     timestamp.CopyFrom(frame.frame_time)
+                width, height = frame.image.width, frame.image.height
+                scale = min(1.0, effective.max_side / max(width, height))
+                infer_width = max(1, round(width * scale))
+                infer_height = max(1, round(height * scale))
                 yield perception_pb2.PerceiveResponse(
                     result=perception_pb2.FrameResult(
                         frame_seq=frame.frame_seq,
                         frame_time=timestamp,
-                        infer_width=960,
-                        infer_height=540,
+                        infer_width=infer_width,
+                        infer_height=infer_height,
+                        detections=mock_detections(frame.frame_seq, infer_width, infer_height),
                         gmc_warp=[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
                         depth_gate=2.5,
                         roi_depth_valid=False,

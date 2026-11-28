@@ -19,6 +19,10 @@ type Config struct {
 	PerceptionTarget string        `koanf:"perception_target"`
 	MaxMessageBytes  int           `koanf:"max_message_bytes"`
 	StartupTimeout   time.Duration `koanf:"startup_timeout"`
+	MockCameraID     int64         `koanf:"mock_camera_id"`
+	MinTrackFrames   int32         `koanf:"min_track_frames"`
+	MaxAbsentFrames  int           `koanf:"max_absent_frames"`
+	DepthEMAAlpha    float64       `koanf:"depth_ema_alpha"`
 }
 
 func Load(path string) (Config, error) {
@@ -39,7 +43,9 @@ func Load(path string) (Config, error) {
 		return Config{}, fmt.Errorf("load environment: %w", err)
 	}
 
-	var cfg Config
+	// Frame counts come from legacy/RGBDSort/sort.py and alpha from
+	// update_track_depth_cache in legacy/RGBDSort/RGBsort.py.
+	cfg := Config{MockCameraID: 1, MinTrackFrames: 3, MaxAbsentFrames: 20, DepthEMAAlpha: 0.8}
 	if err := k.Unmarshal("", &cfg); err != nil {
 		return Config{}, fmt.Errorf("decode config: %w", err)
 	}
@@ -65,6 +71,12 @@ func (c Config) Validate() error {
 	}
 	if c.StartupTimeout <= 0 {
 		return fmt.Errorf("startup_timeout must be positive")
+	}
+	if c.MockCameraID <= 0 || c.MinTrackFrames <= 0 || c.MaxAbsentFrames <= 0 {
+		return fmt.Errorf("mock_camera_id, min_track_frames and max_absent_frames must be positive")
+	}
+	if !(c.DepthEMAAlpha >= 0 && c.DepthEMAAlpha <= 1) {
+		return fmt.Errorf("depth_ema_alpha must be between 0 and 1")
 	}
 	return nil
 }

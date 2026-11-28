@@ -11,11 +11,38 @@ make test-store
 make dev-pipeline
 ```
 
-`dev-up` 生成 Go/Python stubs，并启动本机 PostgreSQL 与固定响应的 PerceptionService。PostgreSQL 首次初始化时创建 `invisiscan_a` 和 `invisiscan_cloud` 两个数据库；两边执行基础迁移，云端库额外执行 `0002_seed.sql`。首次启动后运行 `make dev-replication`，它按 `migrations/site/README.md` 配置 publication/subscription 并等待初始同步完成。开发副本角色密码固定为 `invisiscan_repl`，仅用于本机容器。连接地址只绑定到 loopback：PostgreSQL `127.0.0.1:54329`，gRPC `127.0.0.1:50051`。开发账号为 `invisiscan`，密码同名。
+`dev-up` 生成 Go/Python stubs，并启动本机 PostgreSQL 与按帧号返回检测的 mock PerceptionService。PostgreSQL 首次初始化时创建 `invisiscan_a` 和 `invisiscan_cloud` 两个数据库；两边执行基础迁移，云端库额外执行 `0002_seed.sql`。首次启动后运行 `make dev-replication`，它按 `migrations/site/README.md` 配置 publication/subscription 并等待初始同步完成。开发副本角色密码固定为 `invisiscan_repl`，仅用于本机容器。连接地址只绑定到 loopback，PostgreSQL 使用 `127.0.0.1:54329`，gRPC 使用 `127.0.0.1:50051`。开发账号为 `invisiscan`，密码同名。
 
 SQL 查询按表/领域放在 `go/internal/store/query/`，读写方法由 sqlc 生成；事务编排留在 `store`，轨迹点和图片的批量写入使用 pgx `CopyFrom`。修改查询后运行 `make sqlc-gen`。Makefile 通过 `go run` 调用固定版本 sqlc，无需全局安装。
 
-运行 Go pipeline 骨架时，它会连接 A 库、打开 `Perceive` 流、发送一帧 1×1 假图，并校验收到固定 `SessionReady` 与 `FrameResult`。按 Ctrl-C 退出。`make dev-down` 停止容器但保留数据库卷；容器重启不会重复执行初始化迁移。
+`make dev-pipeline` 向 mock PerceptionService 以 8 FPS 发送 70 帧黑色 BGR 图，约 9 秒后退出。假图尺寸取 A 库中 `mock_camera_id` 对应的已启用相机，默认是云端 seed 复制来的相机 1。帧时间从本次回放起点按 125 毫秒递增，模拟 RTCP 帧时间。每次完整回放写入一条 `closed` 事件、两条 `ended` 轨迹和八个轨迹点。提前按 Ctrl-C 会刷盘并以 `shutdown` 结束正在进行的事件。
+
+在仓库根目录运行以下命令，检查最新一次回放。默认事件持续 875 毫秒，关闭原因为 `absence`，两条轨迹各有 5 点和 3 点。
+
+```sh
+docker compose -f deploy/dev/compose.yaml exec -T postgres psql -U invisiscan -d invisiscan_a <<'SQL'
+WITH latest AS (
+  SELECT * FROM events WHERE camera_id = 1 ORDER BY id DESC LIMIT 1
+)
+SELECT e.id, e.status, e.closed_reason, e.ended_at - e.started_at AS duration,
+       t.tracker_id, t.status AS track_status, t.frame_count,
+       p.seq, p.frame_time, p.bbox_x, p.bbox_y, p.bbox_w, p.bbox_h, p.depth
+FROM latest e JOIN tracks t ON t.event_id = e.id
+JOIN track_points p ON p.track_id = t.id
+ORDER BY t.tracker_id, p.seq;
+SQL
+```
+
+启动开发容器并初始化复制后，可以用独立测试相机逐帧核对落库和查询结果。
+
+```sh
+INVISISCAN_TEST_DSN='postgres://invisiscan:invisiscan@127.0.0.1:54329/invisiscan_a?sslmode=disable' \
+INVISISCAN_CLOUD_TEST_DSN='postgres://invisiscan:invisiscan@127.0.0.1:54329/invisiscan_cloud?sslmode=disable' \
+INVISISCAN_TEST_PERCEPTION_TARGET='127.0.0.1:50051' \
+go test ./go/internal/pipeline -run '^TestMockRealtimePostgres$' -count=1 -v
+```
+
+`make dev-down` 停止容器并保留数据库卷。容器重启会继续使用已初始化的数据库。
 
 `go test ./go/internal/store` 默认跳过数据库测试；设置 `INVISISCAN_TEST_DSN`（A）和 `INVISISCAN_CLOUD_TEST_DSN` 可运行真实 PostgreSQL 数据层读写测试。另设置 `INVISISCAN_REPLICATION_TEST=1` 和 `INVISISCAN_A_TEST_DSN` 可运行双库写入方、奇偶 ID、`origin=none` 和断连追平测试。开发容器 DSN 分别为 `postgres://invisiscan:invisiscan@127.0.0.1:54329/invisiscan_a` 与 `postgres://invisiscan:invisiscan@127.0.0.1:54329/invisiscan_cloud`。
 

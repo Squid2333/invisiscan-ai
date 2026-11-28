@@ -3,3 +3,7 @@ database_url: postgres://invisiscan:invisiscan@127.0.0.1:54329/invisiscan_a?sslm
 perception_target: 127.0.0.1:50051
 max_message_bytes: 16777216
 startup_timeout: 10s
+mock_camera_id: 1
+min_track_frames: 3
+max_absent_frames: 20
+depth_ema_alpha: 0.8
